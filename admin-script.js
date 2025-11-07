@@ -671,11 +671,8 @@ async function handleSaveCita(e) {
         if (existingCita && existingCita.fecha_creacion) {
             citaData.fecha_creacion = existingCita.fecha_creacion;
         }
-    } else {
-        // Para nueva cita, enviar id_cita como 0 o no enviarlo
-        // Depende de lo que espere la API
-        citaData.id_cita = 0;
     }
+    // Para nueva cita (POST), NO enviar id_cita - la base de datos lo genera automáticamente
     
     try {
         setSaveLoading(true);
@@ -686,7 +683,15 @@ async function handleSaveCita(e) {
         
         const method = editingCitaId ? 'PUT' : 'POST';
         
-        console.log('Enviando cita:', { url, method, data: citaData });
+        // Logs detallados para depuración
+        console.log('========================================');
+        console.log('📤 ENVIANDO CITA');
+        console.log('========================================');
+        console.log('URL:', url);
+        console.log('Método:', method);
+        console.log('Es edición:', !!editingCitaId);
+        console.log('Datos a enviar:', JSON.stringify(citaData, null, 2));
+        console.log('========================================');
         
         const response = await fetch(url, {
             method: method,
@@ -696,35 +701,76 @@ async function handleSaveCita(e) {
             body: JSON.stringify(citaData)
         });
         
+        console.log('========================================');
+        console.log('📥 RESPUESTA DEL SERVIDOR');
+        console.log('========================================');
+        console.log('Status:', response.status);
+        console.log('Status Text:', response.statusText);
+        console.log('Headers:', Object.fromEntries(response.headers.entries()));
+        
         if (!response.ok) {
             let errorMessage = 'Error al guardar la cita';
+            let errorDetails = null;
+            
             try {
                 const errorText = await response.text();
+                console.log('Error Text (raw):', errorText);
+                
                 if (errorText) {
                     errorMessage = errorText;
                     // Intentar parsear como JSON
                     try {
                         const errorJson = JSON.parse(errorText);
+                        errorDetails = errorJson;
+                        console.log('Error JSON:', errorJson);
+                        
                         if (errorJson.message) {
                             errorMessage = errorJson.message;
                         } else if (errorJson.error) {
                             errorMessage = errorJson.error;
+                        } else if (errorJson.detail) {
+                            errorMessage = errorJson.detail;
                         }
                     } catch (e) {
                         // Si no es JSON, usar el texto directamente
+                        console.log('Error no es JSON, usando texto directo');
                         errorMessage = errorText;
                     }
                 }
             } catch (e) {
-                console.error('Error reading error response:', e);
+                console.error('❌ Error leyendo respuesta de error:', e);
             }
-            console.error('Error response:', response.status, errorMessage);
-            showToast(errorMessage, 'error');
+            
+            console.error('========================================');
+            console.error('❌ ERROR AL GUARDAR CITA');
+            console.error('========================================');
+            console.error('Status Code:', response.status);
+            console.error('Status Text:', response.statusText);
+            console.error('Mensaje de Error:', errorMessage);
+            console.error('Detalles del Error:', errorDetails);
+            console.error('Datos enviados:', citaData);
+            console.error('========================================');
+            
+            // Mostrar error más descriptivo
+            const errorDisplay = errorMessage.length > 100 
+                ? errorMessage.substring(0, 100) + '...' 
+                : errorMessage;
+            showToast(`Error ${response.status}: ${errorDisplay}`, 'error');
+            
+            // También mostrar en alert para que sea más visible
+            if (errorMessage && errorMessage.length < 200) {
+                alert(`Error al guardar la cita:\n\n${errorMessage}\n\nRevisa la consola (F12) para más detalles.`);
+            }
+            
             return;
         }
         
         const result = await response.json();
-        console.log('Cita guardada exitosamente:', result);
+        console.log('========================================');
+        console.log('✅ CITA GUARDADA EXITOSAMENTE');
+        console.log('========================================');
+        console.log('Respuesta del servidor:', JSON.stringify(result, null, 2));
+        console.log('========================================');
         
         showToast(
             editingCitaId ? 'Cita actualizada exitosamente' : 'Cita creada exitosamente',
@@ -735,8 +781,17 @@ async function handleSaveCita(e) {
         await loadCitas();
         
     } catch (error) {
-        console.error('Error saving cita:', error);
-        showToast(`Error al guardar la cita: ${error.message}`, 'error');
+        console.error('========================================');
+        console.error('❌ EXCEPCIÓN AL GUARDAR CITA');
+        console.error('========================================');
+        console.error('Error:', error);
+        console.error('Error Message:', error.message);
+        console.error('Error Stack:', error.stack);
+        console.error('Datos que se intentaron enviar:', citaData);
+        console.error('========================================');
+        
+        showToast(`Error de conexión: ${error.message}`, 'error');
+        alert(`Error de conexión al guardar la cita:\n\n${error.message}\n\nRevisa la consola (F12) para más detalles.`);
     } finally {
         setSaveLoading(false);
     }

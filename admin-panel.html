@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Administrativo - Citas</title>
+    <link rel="stylesheet" href="admin-styles.css">
+</head>
+<body>
+    <div class="admin-container">
+        <!-- Header -->
+        <header class="admin-header">
+            <div class="header-left">
+                <h1>Panel Administrativo</h1>
+                <span class="user-greeting" id="userGreeting">Bienvenido</span>
+            </div>
+            <button class="btn-logout" id="logoutBtn">Cerrar Sesión</button>
+        </header>
+
+        <!-- Main Content -->
+        <main class="admin-main">
+            <!-- Navigation Tabs -->
+            <div class="nav-tabs">
+                <button class="nav-tab active" id="citasTab" onclick="switchTab('citas')">
+                    📅 Citas
+                </button>
+                <button class="nav-tab" id="facturasTab" onclick="switchTab('facturas')">
+                    🧾 Facturas
+                </button>
+                <button class="nav-tab" id="reportesTab" onclick="switchTab('reportes')">
+                    📊 Reportes
+                </button>
+            </div>
+
+            <!-- Citas Section -->
+            <div class="tab-content active" id="citasSection">
+                <!-- Actions Bar -->
+                <div class="actions-bar">
+                    <h2>Gestión de Citas</h2>
+                    <button class="btn-primary" id="newCitaBtn">
+                        <span>+</span> Nueva Cita
+                    </button>
+                </div>
+
+                <!-- Citas Table -->
+                <div class="table-container">
+                    <table class="data-table" id="citasTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Cliente</th>
+                                <th>Trabajador</th>
+                                <th>Servicio</th>
+                                <th>Fecha</th>
+                                <th>Hora</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="citasTableBody">
+                            <tr>
+                                <td colspan="8" class="loading-cell">
+                                    <span class="spinner"></span> Cargando citas...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Facturas Section -->
+            <div class="tab-content" id="facturasSection">
+                <!-- Actions Bar -->
+                <div class="actions-bar">
+                    <h2>Gestión de Facturas</h2>
+                    <button class="btn-primary" id="newFacturaBtn">
+                        <span>+</span> Nueva Factura
+                    </button>
+                </div>
+
+                <!-- Facturas Table -->
+                <div class="table-container">
+                    <table class="data-table" id="facturasTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Cita</th>
+                                <th>Cliente</th>
+                                <th>Total</th>
+                                <th>Método de Pago</th>
+                                <th>Fecha Emisión</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="facturasTableBody">
+                            <tr>
+                                <td colspan="7" class="loading-cell">
+                                    <span class="spinner"></span> Cargando facturas...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Reportes Section -->
+            <div class="tab-content" id="reportesSection">
+                <!-- Actions Bar -->
+                <div class="actions-bar">
+                    <h2>Reportes y Análisis</h2>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn-secondary" id="exportCsvBtn">
+                            📥 Exportar CSV
+                        </button>
+                        <button class="btn-secondary" id="exportPdfBtn">
+                            📄 Exportar PDF
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="filters-section">
+                    <div class="filter-group">
+                        <label for="reporteFecha">Fecha:</label>
+                        <input type="date" id="reporteFecha" class="filter-input">
+                    </div>
+                    <button class="btn-primary" id="generarReporteBtn">
+                        🔍 Generar Reporte
+                    </button>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">📅</div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="totalCitas">0</div>
+                            <div class="stat-label">Citas del Día</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="citasCompletadas">0</div>
+                            <div class="stat-label">Citas Completadas</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💰</div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="ventasTotales">$0.00</div>
+                            <div class="stat-label">Ventas Totales</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="facturasGeneradas">0</div>
+                            <div class="stat-label">Facturas Generadas</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Services Report Table -->
+                <div class="report-section">
+                    <h3>📋 Reporte de Servicios</h3>
+                    <div class="table-container">
+                        <table class="data-table" id="serviciosReportTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nombre Servicio</th>
+                                    <th>Descripción</th>
+                                    <th>Precio</th>
+                                    <th>Duración (min)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="serviciosReportTableBody">
+                                <tr>
+                                    <td colspan="5" class="loading-cell">
+                                        <span class="spinner"></span> Cargando servicios...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Daily Citas Report Table -->
+                <div class="report-section">
+                    <h3>📅 Citas del Día</h3>
+                    <div class="table-container">
+                        <table class="data-table" id="citasDiaReportTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Cliente</th>
+                                    <th>Trabajador</th>
+                                    <th>Servicio</th>
+                                    <th>Hora</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="citasDiaReportTableBody">
+                                <tr>
+                                    <td colspan="6" class="empty-cell">
+                                        Selecciona una fecha y genera el reporte
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Sales Report Table -->
+                <div class="report-section">
+                    <h3>💵 Reporte de Ventas</h3>
+                    <div class="table-container">
+                        <table class="data-table" id="ventasReportTable">
+                            <thead>
+                                <tr>
+                                    <th>ID Factura</th>
+                                    <th>Cita</th>
+                                    <th>Total</th>
+                                    <th>Método Pago</th>
+                                    <th>Fecha</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ventasReportTableBody">
+                                <tr>
+                                    <td colspan="5" class="empty-cell">
+                                        Selecciona una fecha y genera el reporte
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal for Create/Edit Cita -->
+    <div class="modal" id="citaModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Nueva Cita</h2>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            
+            <form id="citaForm" class="modal-form">
+                <input type="hidden" id="citaId" name="id_cita">
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_cliente">Cliente *</label>
+                        <select 
+                            id="id_cliente" 
+                            name="id_cliente" 
+                            required
+                        >
+                            <option value="">Seleccione un cliente...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="id_trabajador">Trabajador *</label>
+                        <select 
+                            id="id_trabajador" 
+                            name="id_trabajador" 
+                            required
+                        >
+                            <option value="">Seleccione un trabajador...</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="id_servicio">Servicio *</label>
+                        <select 
+                            id="id_servicio" 
+                            name="id_servicio" 
+                            required
+                        >
+                            <option value="">Seleccione un servicio...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="estado">Estado *</label>
+                        <select id="estado" name="estado" required>
+                            <option value="">Seleccione...</option>
+                            <option value="pendiente">Pendiente</option>
+                            <option value="confirmada">Confirmada</option>
+                            <option value="en_proceso">En Proceso</option>
+                            <option value="completada">Completada</option>
+                            <option value="cancelada">Cancelada</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="fecha_cita">Fecha de Cita *</label>
+                        <input 
+                            type="date" 
+                            id="fecha_cita" 
+                            name="fecha_cita" 
+                            required
+                        >
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="hora_cita">Hora de Cita *</label>
+                        <input 
+                            type="time" 
+                            id="hora_cita" 
+                            name="hora_cita" 
+                            required
+                        >
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="observaciones">Observaciones</label>
+                    <textarea 
+                        id="observaciones" 
+                        name="observaciones" 
+                        rows="3"
+                        placeholder="Notas adicionales sobre la cita..."
+                    ></textarea>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" id="cancelBtn">Cancelar</button>
+                    <button type="submit" class="btn-primary" id="saveBtn">
+                        <span class="btn-text">Guardar</span>
+                        <span class="btn-loading" style="display: none;">
+                            <span class="spinner"></span> Guardando...
+                        </span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal for Delete Confirmation -->
+    <div class="modal" id="deleteModal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h2>Confirmar Eliminación</h2>
+                <button class="modal-close" id="deleteModalClose">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <p>¿Estás seguro de que deseas eliminar esta cita?</p>
+                <p class="delete-warning">Esta acción no se puede deshacer.</p>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" id="cancelDeleteBtn">Cancelar</button>
+                <button type="button" class="btn-danger" id="confirmDeleteBtn">
+                    Eliminar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Create/Edit Factura -->
+    <div class="modal" id="facturaModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="facturaModalTitle">Nueva Factura</h2>
+                <button class="modal-close" id="facturaModalClose">&times;</button>
+            </div>
+            
+            <form id="facturaForm" class="modal-form">
+                <input type="hidden" id="facturaId" name="id_factura">
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="factura_id_cita">Cita *</label>
+                        <select 
+                            id="factura_id_cita" 
+                            name="id_cita" 
+                            required
+                        >
+                            <option value="">Seleccione una cita...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="facturaClienteSelect">Cliente asociado</label>
+                        <select id="facturaClienteSelect">
+                            <option value="">Ver todos los clientes</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="total">Total ($) *</label>
+                        <input 
+                            type="number" 
+                            id="total" 
+                            name="total" 
+                            required
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                        >
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="metodo_pago">Método de Pago *</label>
+                        <select id="metodo_pago" name="metodo_pago" required>
+                            <option value="">Seleccione...</option>
+                            <option value="efectivo">Efectivo</option>
+                            <option value="tarjeta_debito">Tarjeta Débito</option>
+                            <option value="tarjeta_credito">Tarjeta Crédito</option>
+                            <option value="transferencia">Transferencia</option>
+                            <option value="pse">PSE</option>
+                            <option value="nequi">Nequi</option>
+                            <option value="daviplata">Daviplata</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="fecha_emision">Fecha de Emisión *</label>
+                        <input 
+                            type="date" 
+                            id="fecha_emision" 
+                            name="fecha_emision" 
+                            required
+                        >
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" id="cancelFacturaBtn">Cancelar</button>
+                    <button type="submit" class="btn-primary" id="saveFacturaBtn">
+                        <span class="btn-text">Guardar</span>
+                        <span class="btn-loading" style="display: none;">
+                            <span class="spinner"></span> Guardando...
+                        </span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal for Delete Factura Confirmation -->
+    <div class="modal" id="deleteFacturaModal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h2>Confirmar Eliminación</h2>
+                <button class="modal-close" id="deleteFacturaModalClose">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <p>¿Estás seguro de que deseas eliminar esta factura?</p>
+                <p class="delete-warning">Esta acción no se puede deshacer.</p>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" id="cancelDeleteFacturaBtn">Cancelar</button>
+                <button type="button" class="btn-danger" id="confirmDeleteFacturaBtn">
+                    Eliminar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div class="toast" id="toast">
+        <span id="toastMessage"></span>
+    </div>
+
+    <script src="admin-script.js"></script>
+</body>
+</html>
+

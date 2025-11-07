@@ -593,18 +593,46 @@ async function handleSaveCita(e) {
     const idServicio = parseInt(formData.get('id_servicio'), 10);
     const fechaSeleccionada = formData.get('fecha_cita');
     const horaSeleccionada = formData.get('hora_cita');
+    const estado = formData.get('estado');
     const observaciones = formData.get('observaciones') || '';
 
-    if (Number.isNaN(idCliente) || Number.isNaN(idTrabajador) || Number.isNaN(idServicio)) {
-        showToast('Por favor selecciona cliente, trabajador y servicio válidos', 'error');
+    // Validar campos requeridos
+    if (Number.isNaN(idCliente) || idCliente <= 0) {
+        showToast('Por favor selecciona un cliente válido', 'error');
         return;
     }
 
+    if (Number.isNaN(idTrabajador) || idTrabajador <= 0) {
+        showToast('Por favor selecciona un trabajador válido', 'error');
+        return;
+    }
+
+    if (Number.isNaN(idServicio) || idServicio <= 0) {
+        showToast('Por favor selecciona un servicio válido', 'error');
+        return;
+    }
+
+    if (!fechaSeleccionada) {
+        showToast('Por favor selecciona una fecha para la cita', 'error');
+        return;
+    }
+
+    if (!horaSeleccionada) {
+        showToast('Por favor selecciona una hora para la cita', 'error');
+        return;
+    }
+
+    if (!estado) {
+        showToast('Por favor selecciona un estado para la cita', 'error');
+        return;
+    }
+
+    // Formatear fecha en formato ISO
     let fechaCitaIso = null;
-    if (fechaSeleccionada) {
-        const hora = horaSeleccionada || '00:00';
-        const fechaCompleta = `${fechaSeleccionada}T${hora}`;
-        const fechaObj = new Date(fechaCompleta);
+    try {
+        // Combinar fecha y hora
+        const fechaHora = `${fechaSeleccionada}T${horaSeleccionada}:00`;
+        const fechaObj = new Date(fechaHora);
 
         if (Number.isNaN(fechaObj.getTime())) {
             showToast('Fecha u hora de la cita inválida', 'error');
@@ -612,30 +640,34 @@ async function handleSaveCita(e) {
         }
 
         fechaCitaIso = fechaObj.toISOString();
+    } catch (error) {
+        console.error('Error formatting date:', error);
+        showToast('Error al formatear la fecha de la cita', 'error');
+        return;
     }
 
+    // Construir objeto de datos según si es creación o edición
     const citaData = {
-        id_cita: editingCitaId || 0,
         id_cliente: idCliente,
         id_trabajador: idTrabajador,
         id_servicio: idServicio,
         fecha_cita: fechaCitaIso,
         hora_cita: horaSeleccionada,
-        estado: formData.get('estado'),
+        estado: estado,
         observaciones: observaciones
     };
 
+    // Si es edición, agregar id_cita y fecha_creacion
     if (editingCitaId) {
+        citaData.id_cita = editingCitaId;
         const existingCita = citas.find(c => c.id_cita === editingCitaId);
         if (existingCita && existingCita.fecha_creacion) {
             citaData.fecha_creacion = existingCita.fecha_creacion;
         }
-    }
-    
-    // Validate data
-    if (!fechaSeleccionada || !citaData.hora_cita) {
-        showToast('Por favor completa la fecha y hora de la cita', 'error');
-        return;
+    } else {
+        // Para nueva cita, enviar id_cita como 0 o no enviarlo
+        // Depende de lo que espere la API
+        citaData.id_cita = 0;
     }
     
     try {
@@ -647,6 +679,8 @@ async function handleSaveCita(e) {
         
         const method = editingCitaId ? 'PUT' : 'POST';
         
+        console.log('Enviando cita:', { url, method, data: citaData });
+        
         const response = await fetch(url, {
             method: method,
             headers: {
@@ -656,9 +690,34 @@ async function handleSaveCita(e) {
         });
         
         if (!response.ok) {
-            const errorMessage = await response.text();
-            throw new Error(errorMessage || 'Error al guardar la cita');
+            let errorMessage = 'Error al guardar la cita';
+            try {
+                const errorText = await response.text();
+                if (errorText) {
+                    errorMessage = errorText;
+                    // Intentar parsear como JSON
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        if (errorJson.message) {
+                            errorMessage = errorJson.message;
+                        } else if (errorJson.error) {
+                            errorMessage = errorJson.error;
+                        }
+                    } catch (e) {
+                        // Si no es JSON, usar el texto directamente
+                        errorMessage = errorText;
+                    }
+                }
+            } catch (e) {
+                console.error('Error reading error response:', e);
+            }
+            console.error('Error response:', response.status, errorMessage);
+            showToast(errorMessage, 'error');
+            return;
         }
+        
+        const result = await response.json();
+        console.log('Cita guardada exitosamente:', result);
         
         showToast(
             editingCitaId ? 'Cita actualizada exitosamente' : 'Cita creada exitosamente',
@@ -666,11 +725,11 @@ async function handleSaveCita(e) {
         );
         
         closeCitaModal();
-        loadCitas();
+        await loadCitas();
         
     } catch (error) {
         console.error('Error saving cita:', error);
-        showToast('Error al guardar la cita. Por favor intenta de nuevo.', 'error');
+        showToast(`Error al guardar la cita: ${error.message}`, 'error');
     } finally {
         setSaveLoading(false);
     }

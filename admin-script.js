@@ -654,6 +654,8 @@ async function handleSaveCita(e) {
     // Construir objeto de datos según si es creación o edición
     // fecha_cita debe ser solo la fecha en formato YYYY-MM-DD
     // hora_cita debe ser solo la hora en formato HH:MM:SS
+    // Para POST (nueva cita): NO enviar id_cita (es autoincremental en BD)
+    // Para PUT (editar cita): enviar id_cita y fecha_creacion
     const citaData = {
         id_cliente: idCliente,
         id_trabajador: idTrabajador,
@@ -664,7 +666,7 @@ async function handleSaveCita(e) {
         observaciones: observaciones
     };
 
-    // Si es edición, agregar id_cita y fecha_creacion
+    // Solo agregar id_cita y fecha_creacion si es edición (PUT)
     if (editingCitaId) {
         citaData.id_cita = editingCitaId;
         const existingCita = citas.find(c => c.id_cita === editingCitaId);
@@ -1053,13 +1055,44 @@ async function handleSaveFactura(e) {
     e.preventDefault();
     
     const formData = new FormData(facturaForm);
+    const idCita = parseInt(formData.get('id_cita'), 10);
+    const total = parseFloat(formData.get('total'));
+    const metodoPago = formData.get('metodo_pago');
+    
+    // Validar campos requeridos
+    if (Number.isNaN(idCita) || idCita <= 0) {
+        showToast('Por favor selecciona una cita válida', 'error');
+        return;
+    }
+    
+    if (Number.isNaN(total) || total <= 0) {
+        showToast('Por favor ingresa un total válido mayor a 0', 'error');
+        return;
+    }
+    
+    if (!metodoPago) {
+        showToast('Por favor selecciona un método de pago', 'error');
+        return;
+    }
+    
+    // Construir objeto de datos según si es creación o edición
+    // Para POST (nueva factura): NO enviar id_factura (es autoincremental) ni fecha_emision
+    // Para PUT (editar factura): enviar id_factura y fecha_emision si existe
     const facturaData = {
-        id_factura: editingFacturaId || 0,
-        id_cita: parseInt(formData.get('id_cita')),
-        total: parseFloat(formData.get('total')),
-        metodo_pago: formData.get('metodo_pago'),
-        fecha_emision: formData.get('fecha_emision')
+        id_cita: idCita,
+        total: total,
+        metodo_pago: metodoPago
     };
+    
+    // Solo agregar id_factura y fecha_emision si es edición (PUT)
+    if (editingFacturaId) {
+        facturaData.id_factura = editingFacturaId;
+        const fechaEmision = formData.get('fecha_emision');
+        if (fechaEmision) {
+            facturaData.fecha_emision = fechaEmision;
+        }
+    }
+    // Para nueva factura (POST), NO enviar id_factura ni fecha_emision
     
     try {
         setFacturaSaveLoading(true);
@@ -1070,6 +1103,15 @@ async function handleSaveFactura(e) {
         
         const method = editingFacturaId ? 'PUT' : 'POST';
         
+        console.log('========================================');
+        console.log('📤 ENVIANDO FACTURA');
+        console.log('========================================');
+        console.log('URL:', url);
+        console.log('Método:', method);
+        console.log('Es edición:', !!editingFacturaId);
+        console.log('Datos a enviar:', JSON.stringify(facturaData, null, 2));
+        console.log('========================================');
+        
         const response = await fetch(url, {
             method: method,
             headers: {
@@ -1078,9 +1120,70 @@ async function handleSaveFactura(e) {
             body: JSON.stringify(facturaData)
         });
         
+        console.log('========================================');
+        console.log('📥 RESPUESTA DEL SERVIDOR');
+        console.log('========================================');
+        console.log('Status:', response.status);
+        console.log('Status Text:', response.statusText);
+        
         if (!response.ok) {
-            throw new Error('Error al guardar la factura');
+            let errorMessage = 'Error al guardar la factura';
+            let errorDetails = null;
+            
+            try {
+                const errorText = await response.text();
+                console.log('Error Text (raw):', errorText);
+                
+                if (errorText) {
+                    errorMessage = errorText;
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        errorDetails = errorJson;
+                        console.log('Error JSON:', errorJson);
+                        
+                        if (errorJson.message) {
+                            errorMessage = errorJson.message;
+                        } else if (errorJson.error) {
+                            errorMessage = errorJson.error;
+                        } else if (errorJson.detail) {
+                            errorMessage = errorJson.detail;
+                        }
+                    } catch (e) {
+                        console.log('Error no es JSON, usando texto directo');
+                        errorMessage = errorText;
+                    }
+                }
+            } catch (e) {
+                console.error('❌ Error leyendo respuesta de error:', e);
+            }
+            
+            console.error('========================================');
+            console.error('❌ ERROR AL GUARDAR FACTURA');
+            console.error('========================================');
+            console.error('Status Code:', response.status);
+            console.error('Mensaje de Error:', errorMessage);
+            console.error('Detalles del Error:', errorDetails);
+            console.error('Datos enviados:', facturaData);
+            console.error('========================================');
+            
+            const errorDisplay = errorMessage.length > 100 
+                ? errorMessage.substring(0, 100) + '...' 
+                : errorMessage;
+            showToast(`Error ${response.status}: ${errorDisplay}`, 'error');
+            
+            if (errorMessage && errorMessage.length < 200) {
+                alert(`Error al guardar la factura:\n\n${errorMessage}\n\nRevisa la consola (F12) para más detalles.`);
+            }
+            
+            return;
         }
+        
+        const result = await response.json();
+        console.log('========================================');
+        console.log('✅ FACTURA GUARDADA EXITOSAMENTE');
+        console.log('========================================');
+        console.log('Respuesta del servidor:', JSON.stringify(result, null, 2));
+        console.log('========================================');
         
         showToast(
             editingFacturaId ? 'Factura actualizada exitosamente' : 'Factura creada exitosamente',
@@ -1088,11 +1191,20 @@ async function handleSaveFactura(e) {
         );
         
         closeFacturaModal();
-        loadFacturas();
+        await loadFacturas();
         
     } catch (error) {
-        console.error('Error saving factura:', error);
-        showToast('Error al guardar la factura. Por favor intenta de nuevo.', 'error');
+        console.error('========================================');
+        console.error('❌ EXCEPCIÓN AL GUARDAR FACTURA');
+        console.error('========================================');
+        console.error('Error:', error);
+        console.error('Error Message:', error.message);
+        console.error('Error Stack:', error.stack);
+        console.error('Datos que se intentaron enviar:', facturaData);
+        console.error('========================================');
+        
+        showToast(`Error de conexión: ${error.message}`, 'error');
+        alert(`Error de conexión al guardar la factura:\n\n${error.message}\n\nRevisa la consola (F12) para más detalles.`);
     } finally {
         setFacturaSaveLoading(false);
     }

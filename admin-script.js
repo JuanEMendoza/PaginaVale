@@ -559,12 +559,29 @@ function fillFormWithCita(cita) {
     document.getElementById('estado').value = cita.estado || '';
     
     // Format date for input
+    // fecha_cita puede venir como 'YYYY-MM-DD' o como ISO string
     if (cita.fecha_cita) {
-        const fecha = new Date(cita.fecha_cita);
-        document.getElementById('fecha_cita').value = fecha.toISOString().split('T')[0];
+        let fechaValue = '';
+        if (cita.fecha_cita.includes('T')) {
+            // Si viene como ISO string, extraer solo la fecha
+            fechaValue = cita.fecha_cita.split('T')[0];
+        } else {
+            // Si ya viene como 'YYYY-MM-DD', usarlo directamente
+            fechaValue = cita.fecha_cita;
+        }
+        document.getElementById('fecha_cita').value = fechaValue;
     }
     
-    document.getElementById('hora_cita').value = cita.hora_cita || '';
+    // Format hour for input (input type="time" espera HH:MM, no HH:MM:SS)
+    if (cita.hora_cita) {
+        let horaValue = cita.hora_cita;
+        // Si viene como HH:MM:SS, extraer solo HH:MM
+        if (horaValue.length >= 5) {
+            horaValue = horaValue.substring(0, 5);
+        }
+        document.getElementById('hora_cita').value = horaValue;
+    }
+    
     document.getElementById('observaciones').value = cita.observaciones || '';
 }
 
@@ -627,32 +644,22 @@ async function handleSaveCita(e) {
         return;
     }
 
-    // Formatear fecha en formato ISO
-    let fechaCitaIso = null;
-    try {
-        // Combinar fecha y hora
-        const fechaHora = `${fechaSeleccionada}T${horaSeleccionada}:00`;
-        const fechaObj = new Date(fechaHora);
-
-        if (Number.isNaN(fechaObj.getTime())) {
-            showToast('Fecha u hora de la cita inválida', 'error');
-            return;
-        }
-
-        fechaCitaIso = fechaObj.toISOString();
-    } catch (error) {
-        console.error('Error formatting date:', error);
-        showToast('Error al formatear la fecha de la cita', 'error');
-        return;
+    // Formatear hora en formato HH:MM:SS
+    let horaFormateada = horaSeleccionada;
+    if (horaFormateada && horaFormateada.length === 5) {
+        // Si viene en formato HH:MM, agregar :00 para HH:MM:SS
+        horaFormateada = horaFormateada + ':00';
     }
 
     // Construir objeto de datos según si es creación o edición
+    // fecha_cita debe ser solo la fecha en formato YYYY-MM-DD
+    // hora_cita debe ser solo la hora en formato HH:MM:SS
     const citaData = {
         id_cliente: idCliente,
         id_trabajador: idTrabajador,
         id_servicio: idServicio,
-        fecha_cita: fechaCitaIso,
-        hora_cita: horaSeleccionada,
+        fecha_cita: fechaSeleccionada, // Solo fecha en formato YYYY-MM-DD
+        hora_cita: horaFormateada, // Hora en formato HH:MM:SS
         estado: estado,
         observaciones: observaciones
     };

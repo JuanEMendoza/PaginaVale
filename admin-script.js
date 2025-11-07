@@ -644,37 +644,57 @@ async function handleSaveCita(e) {
         return;
     }
 
-    // Formatear hora en formato HH:MM:SS
+    // Formatear hora para TimeSpan
+    // TimeSpan en .NET acepta formato "HH:mm:ss" o "HH:mm"
+    // Probamos primero con "HH:mm" (sin segundos) ya que es más común
     let horaFormateada = horaSeleccionada;
-    if (horaFormateada && horaFormateada.length === 5) {
-        // Si viene en formato HH:MM, agregar :00 para HH:MM:SS
-        horaFormateada = horaFormateada + ':00';
-    }
+    // El input type="time" devuelve formato HH:mm, mantenerlo así
+    // TimeSpan en .NET puede parsear "HH:mm" directamente
+    // Si el servidor requiere segundos, se puede agregar :00 después
 
     // Construir objeto de datos según si es creación o edición
+    // La API espera un objeto anidado llamado "cita"
     // fecha_cita debe ser solo la fecha en formato YYYY-MM-DD
-    // hora_cita debe ser solo la hora en formato HH:MM:SS
+    // hora_cita debe ser en formato compatible con TimeSpan (HH:mm)
     // Para POST (nueva cita): NO enviar id_cita (es autoincremental en BD)
     // Para PUT (editar cita): enviar id_cita y fecha_creacion
-    const citaData = {
-        id_cliente: idCliente,
-        id_trabajador: idTrabajador,
-        id_servicio: idServicio,
-        fecha_cita: fechaSeleccionada, // Solo fecha en formato YYYY-MM-DD
-        hora_cita: horaFormateada, // Hora en formato HH:MM:SS
-        estado: estado,
-        observaciones: observaciones
-    };
-
-    // Solo agregar id_cita y fecha_creacion si es edición (PUT)
+    
+    let citaData;
+    
     if (editingCitaId) {
-        citaData.id_cita = editingCitaId;
+        // PUT - Editar cita existente
         const existingCita = citas.find(c => c.id_cita === editingCitaId);
+        citaData = {
+            cita: {
+                id_cita: editingCitaId,
+                id_cliente: idCliente,
+                id_trabajador: idTrabajador,
+                id_servicio: idServicio,
+                fecha_cita: fechaSeleccionada, // Solo fecha en formato YYYY-MM-DD
+                hora_cita: horaFormateada, // Hora en formato HH:mm para TimeSpan
+                estado: estado,
+                observaciones: observaciones
+            }
+        };
+        // Agregar fecha_creacion si existe
         if (existingCita && existingCita.fecha_creacion) {
-            citaData.fecha_creacion = existingCita.fecha_creacion;
+            citaData.cita.fecha_creacion = existingCita.fecha_creacion;
         }
+    } else {
+        // POST - Nueva cita (NO incluir id_cita)
+        citaData = {
+            cita: {
+                id_cliente: idCliente,
+                id_trabajador: idTrabajador,
+                id_servicio: idServicio,
+                fecha_cita: fechaSeleccionada, // Solo fecha en formato YYYY-MM-DD
+                hora_cita: horaFormateada, // Hora en formato HH:mm para TimeSpan
+                estado: estado,
+                observaciones: observaciones
+            }
+        };
+        // NO incluir id_cita - la base de datos lo genera automáticamente
     }
-    // Para nueva cita (POST), NO enviar id_cita - la base de datos lo genera automáticamente
     
     try {
         setSaveLoading(true);
@@ -710,37 +730,37 @@ async function handleSaveCita(e) {
         console.log('Status Text:', response.statusText);
         console.log('Headers:', Object.fromEntries(response.headers.entries()));
         
+        // Leer la respuesta como texto (solo se puede leer una vez)
+        const responseText = await response.text();
+        console.log('Response Text (raw):', responseText);
+        
         if (!response.ok) {
             let errorMessage = 'Error al guardar la cita';
             let errorDetails = null;
             
-            try {
-                const errorText = await response.text();
-                console.log('Error Text (raw):', errorText);
-                
-                if (errorText) {
-                    errorMessage = errorText;
-                    // Intentar parsear como JSON
-                    try {
-                        const errorJson = JSON.parse(errorText);
-                        errorDetails = errorJson;
-                        console.log('Error JSON:', errorJson);
-                        
-                        if (errorJson.message) {
-                            errorMessage = errorJson.message;
-                        } else if (errorJson.error) {
-                            errorMessage = errorJson.error;
-                        } else if (errorJson.detail) {
-                            errorMessage = errorJson.detail;
-                        }
-                    } catch (e) {
-                        // Si no es JSON, usar el texto directamente
-                        console.log('Error no es JSON, usando texto directo');
-                        errorMessage = errorText;
+            if (responseText) {
+                // Intentar parsear como JSON
+                try {
+                    const errorJson = JSON.parse(responseText);
+                    errorDetails = errorJson;
+                    console.log('Error JSON:', errorJson);
+                    
+                    if (errorJson.message) {
+                        errorMessage = errorJson.message;
+                    } else if (errorJson.error) {
+                        errorMessage = errorJson.error;
+                    } else if (errorJson.detail) {
+                        errorMessage = errorJson.detail;
+                    } else {
+                        errorMessage = responseText;
                     }
+                } catch (e) {
+                    // Si no es JSON, usar el texto directamente
+                    console.log('Error no es JSON, usando texto directo');
+                    errorMessage = responseText || `Error ${response.status}: ${response.statusText}`;
                 }
-            } catch (e) {
-                console.error('❌ Error leyendo respuesta de error:', e);
+            } else {
+                errorMessage = `Error ${response.status}: ${response.statusText}`;
             }
             
             console.error('========================================');
@@ -750,7 +770,9 @@ async function handleSaveCita(e) {
             console.error('Status Text:', response.statusText);
             console.error('Mensaje de Error:', errorMessage);
             console.error('Detalles del Error:', errorDetails);
-            console.error('Datos enviados:', citaData);
+            console.error('Datos enviados:', JSON.stringify(citaData, null, 2));
+            console.error('URL:', url);
+            console.error('Método:', method);
             console.error('========================================');
             
             // Mostrar error más descriptivo
@@ -764,10 +786,23 @@ async function handleSaveCita(e) {
                 alert(`Error al guardar la cita:\n\n${errorMessage}\n\nRevisa la consola (F12) para más detalles.`);
             }
             
+            setSaveLoading(false);
             return;
         }
         
-        const result = await response.json();
+        // Intentar parsear la respuesta como JSON
+        let result;
+        if (responseText) {
+            try {
+                result = JSON.parse(responseText);
+            } catch (e) {
+                // Si no es JSON válido, crear un objeto con el texto
+                console.warn('No se pudo parsear la respuesta como JSON:', e);
+                result = { message: responseText, success: true };
+            }
+        } else {
+            result = { success: true, message: 'Cita guardada exitosamente' };
+        }
         console.log('========================================');
         console.log('✅ CITA GUARDADA EXITOSAMENTE');
         console.log('========================================');

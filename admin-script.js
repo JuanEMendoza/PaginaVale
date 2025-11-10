@@ -202,6 +202,16 @@ function loadUserInfo() {
 function setupEventListeners() {
     logoutBtn.addEventListener('click', handleLogout);
     
+    // Tab navigation listeners (sin usar onclick inline)
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+        tab.addEventListener('click', (e) => {
+            const tabName = e.currentTarget.getAttribute('data-tab');
+            if (tabName) {
+                switchTab(tabName);
+            }
+        });
+    });
+    
     // Citas listeners
     newCitaBtn.addEventListener('click', () => openCitaModal());
     modalClose.addEventListener('click', closeCitaModal);
@@ -245,6 +255,40 @@ function setupEventListeners() {
     if (facturaClienteFilterSelect) {
         facturaClienteFilterSelect.addEventListener('change', () => {
             populateFacturaCitaOptions(facturaClienteFilterSelect.value);
+        });
+    }
+    
+    // Event delegation para botones de acciones en las tablas
+    // Usar event delegation en el contenedor de la tabla para evitar múltiples listeners
+    if (citasTableBody) {
+        citasTableBody.addEventListener('click', (e) => {
+            const button = e.target.closest('button[data-action]');
+            if (!button) return;
+            
+            const action = button.getAttribute('data-action');
+            const citaId = parseInt(button.getAttribute('data-cita-id'), 10);
+            
+            if (action === 'edit-cita' && citaId) {
+                editCita(citaId);
+            } else if (action === 'delete-cita' && citaId) {
+                confirmDelete(citaId);
+            }
+        });
+    }
+    
+    if (facturasTableBody) {
+        facturasTableBody.addEventListener('click', (e) => {
+            const button = e.target.closest('button[data-action]');
+            if (!button) return;
+            
+            const action = button.getAttribute('data-action');
+            const facturaId = parseInt(button.getAttribute('data-factura-id'), 10);
+            
+            if (action === 'edit-factura' && facturaId) {
+                editFactura(facturaId);
+            } else if (action === 'delete-factura' && facturaId) {
+                confirmDeleteFactura(facturaId);
+            }
         });
     }
 }
@@ -477,16 +521,19 @@ function renderCitas() {
                 <td>${hora}</td>
                 <td><span class="badge badge-${estadoClass}">${estado}</span></td>
                 <td>
-                    <button class="btn-action btn-edit" onclick="editCita(${cita.id_cita})">
+                    <button class="btn-action btn-edit" data-cita-id="${cita.id_cita}" data-action="edit-cita">
                         ✏️ Editar
                     </button>
-                    <button class="btn-action btn-delete" onclick="confirmDelete(${cita.id_cita})">
+                    <button class="btn-action btn-delete" data-cita-id="${cita.id_cita}" data-action="delete-cita">
                         🗑️ Eliminar
                     </button>
                 </td>
             </tr>
         `;
     }).join('');
+    
+    // Los event listeners ya están configurados en setupEventListeners() usando event delegation
+    // No es necesario agregarlos aquí cada vez que se renderiza la tabla
     
     setTableLoading(false);
 }
@@ -1117,16 +1164,19 @@ function renderFacturas() {
                 <td>${metodoPago}</td>
                 <td>${fechaFormatted}</td>
                 <td>
-                    <button class="btn-action btn-edit" onclick="editFactura(${factura.id_factura})">
+                    <button class="btn-action btn-edit" data-factura-id="${factura.id_factura}" data-action="edit-factura">
                         ✏️ Editar
                     </button>
-                    <button class="btn-action btn-delete" onclick="confirmDeleteFactura(${factura.id_factura})">
+                    <button class="btn-action btn-delete" data-factura-id="${factura.id_factura}" data-action="delete-factura">
                         🗑️ Eliminar
                     </button>
                 </td>
             </tr>
         `;
     }).join('');
+    
+    // Los event listeners ya están configurados en setupEventListeners() usando event delegation
+    // No es necesario agregarlos aquí cada vez que se renderiza la tabla
 }
 
 // Get metodo_pago label
@@ -1935,9 +1985,7 @@ function generateSalesTableHtml(fecha) {
 }
 
 // Export functions for inline onclick handlers
-window.editCita = editCita;
-window.confirmDelete = confirmDelete;
+// Las funciones ya no se exportan a window porque usamos event delegation
+// switchTab se mantiene por compatibilidad, aunque ya se maneja con event listeners
 window.switchTab = switchTab;
-window.editFactura = editFactura;
-window.confirmDeleteFactura = confirmDeleteFactura;
 

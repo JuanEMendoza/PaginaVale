@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test CORS - Diagnóstico</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔍 Test de CORS - Diagnóstico</h1>
+        <p>Esta herramienta te ayudará a diagnosticar problemas de CORS con tu API.</p>
+        
+        <div>
+            <button class="test-button" onclick="testCors('GET', 'https://apipeluqueria-1.onrender.com/api/citas')">
+                Test GET /api/citas
+            </button>
+            <button class="test-button" onclick="testCors('GET', 'https://apipeluqueria-1.onrender.com/api/usuarios')">
+                Test GET /api/usuarios
+            </button>
+            <button class="test-button" onclick="testCors('POST', 'https://apipeluqueria-1.onrender.com/api/citas')">
+                Test POST /api/citas
+            </button>
+            <button class="test-button" onclick="testAll()">
+                Test Todos los Endpoints
+            </button>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        async function testCors(method, url, body = null) {
+            const resultsDiv = document.getElementById('results');
+            const testDiv = document.createElement('div');
+            testDiv.className = 'result info';
+            testDiv.innerHTML = `🔄 Probando ${method} ${url}...`;
+            resultsDiv.appendChild(testDiv);
+
+            try {
+                const options = {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                };
+
+                if (body) {
+                    options.body = JSON.stringify(body);
+                }
+
+                const response = await fetch(url, options);
+                
+                // Leer los headers de respuesta
+                const headers = {};
+                response.headers.forEach((value, key) => {
+                    headers[key] = value;
+                });
+
+                const responseText = await response.text();
+                let responseData;
+                try {
+                    responseData = JSON.parse(responseText);
+                } catch (e) {
+                    responseData = responseText;
+                }
+
+                testDiv.className = 'result success';
+                testDiv.innerHTML = `
+✅ ${method} ${url}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Status: ${response.status} ${response.statusText}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Headers de Respuesta:
+${JSON.stringify(headers, null, 2)}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CORS Headers:
+${headers['access-control-allow-origin'] ? '✅ Access-Control-Allow-Origin: ' + headers['access-control-allow-origin'] : '❌ Access-Control-Allow-Origin: NO ENCONTRADO'}
+${headers['access-control-allow-methods'] ? '✅ Access-Control-Allow-Methods: ' + headers['access-control-allow-methods'] : '❌ Access-Control-Allow-Methods: NO ENCONTRADO'}
+${headers['access-control-allow-headers'] ? '✅ Access-Control-Allow-Headers: ' + headers['access-control-allow-headers'] : '❌ Access-Control-Allow-Headers: NO ENCONTRADO'}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Response (primeros 500 caracteres):
+${typeof responseData === 'object' ? JSON.stringify(responseData, null, 2).substring(0, 500) : responseData.substring(0, 500)}
+                `;
+
+            } catch (error) {
+                testDiv.className = 'result error';
+                testDiv.innerHTML = `
+❌ ${method} ${url}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Error: ${error.name}
+Mensaje: ${error.message}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${error.message.includes('CORS') || error.message.includes('blocked') ? 
+    '🔴 PROBLEMA DE CORS DETECTADO\n\n' +
+    'El backend NO está configurado para permitir peticiones desde este origen.\n\n' +
+    'SOLUCIÓN:\n' +
+    '1. Abre el archivo Program.cs de tu API\n' +
+    '2. Agrega la configuración de CORS (ver CORS_SOLUTION.md)\n' +
+    '3. Redespliega la API\n\n' +
+    'Ver CORS_SOLUTION.md para instrucciones detalladas.'
+    : 'Error desconocido. Revisa la consola para más detalles.'}
+                `;
+            }
+        }
+
+        async function testAll() {
+            document.getElementById('results').innerHTML = '';
+            
+            await testCors('GET', 'https://apipeluqueria-1.onrender.com/api/usuarios');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await testCors('GET', 'https://apipeluqueria-1.onrender.com/api/citas');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await testCors('GET', 'https://apipeluqueria-1.onrender.com/api/facturas');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await testCors('GET', 'https://apipeluqueria-1.onrender.com/api/servicios');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await testCors('POST', 'https://apipeluqueria-1.onrender.com/api/citas', {
+                id_cliente: 1,
+                id_trabajador: 1,
+                id_servicio: 1,
+                fecha_cita: new Date().toISOString(),
+                hora_cita: "10:00",
+                estado: "pendiente",
+                observaciones: "Test CORS"
+            });
+        }
+    </script>
+</body>
+</html>
+

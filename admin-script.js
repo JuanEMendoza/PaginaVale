@@ -1013,13 +1013,48 @@ async function handleSaveCita(e) {
         console.error('❌ EXCEPCIÓN AL GUARDAR CITA');
         console.error('========================================');
         console.error('Error:', error);
+        console.error('Error Name:', error.name);
         console.error('Error Message:', error.message);
         console.error('Error Stack:', error.stack);
         console.error('Datos que se intentaron enviar:', citaData);
         console.error('========================================');
         
-        showToast(`Error de conexión: ${error.message}`, 'error');
-        alert(`Error de conexión al guardar la cita:\n\n${error.message}\n\nRevisa la consola (F12) para más detalles.`);
+        // Detectar errores de CORS específicamente
+        const errorMessage = error.message || error.toString();
+        const isCorsError = errorMessage.includes('Failed to fetch') || 
+                           errorMessage.includes('NetworkError') ||
+                           errorMessage.includes('CORS') ||
+                           errorMessage.includes('blocked') ||
+                           errorMessage.includes('Access-Control') ||
+                           error.name === 'TypeError';
+        
+        if (isCorsError) {
+            const corsErrorMessage = `🔴 ERROR DE CORS DETECTADO
+
+El backend NO está configurado para permitir peticiones desde este origen.
+
+PROBLEMA:
+- Tu página web está en: https://paginavale.onrender.com
+- Tu API está en: https://apipeluqueria-1.onrender.com
+- El backend NO permite peticiones desde tu página web
+
+SOLUCIÓN:
+1. Abre el archivo Program.cs de tu API
+2. Agrega la configuración de CORS (ver BACKEND_CORS_FIX.md)
+3. Redespliega la API a Render
+4. Espera a que Render termine el despliegue
+
+Ver el archivo BACKEND_CORS_FIX.md para instrucciones detalladas.
+También puedes usar test-cors.html para diagnosticar el problema.`;
+            
+            console.error(corsErrorMessage);
+            alert(corsErrorMessage);
+            showToast('❌ Error de CORS: El backend no permite peticiones. Ver BACKEND_CORS_FIX.md', 'error');
+        } else {
+            // Otro tipo de error
+            showToast(`Error de conexión: ${errorMessage}`, 'error');
+            alert(`Error de conexión al guardar la cita:\n\n${errorMessage}\n\nRevisa la consola (F12) para más detalles.`);
+        }
     } finally {
         setSaveLoading(false);
     }

@@ -558,28 +558,57 @@ function fillFormWithCita(cita) {
     }
     document.getElementById('estado').value = cita.estado || '';
     
-    // Format date for input
-    // fecha_cita puede venir como 'YYYY-MM-DD' o como ISO string
+    // Format date and time for inputs
+    // fecha_cita ahora viene como ISO string (DateTime completo)
+    const fechaInput = document.getElementById('fecha_cita');
+    const horaInput = document.getElementById('hora_cita');
+    
     if (cita.fecha_cita) {
-        let fechaValue = '';
-        if (cita.fecha_cita.includes('T')) {
-            // Si viene como ISO string, extraer solo la fecha
-            fechaValue = cita.fecha_cita.split('T')[0];
-        } else {
-            // Si ya viene como 'YYYY-MM-DD', usarlo directamente
-            fechaValue = cita.fecha_cita;
+        try {
+            const fecha = new Date(cita.fecha_cita);
+            if (!isNaN(fecha.getTime())) {
+                // Extraer solo la fecha para el input type="date" (YYYY-MM-DD)
+                const fechaValue = fecha.toISOString().split('T')[0];
+                fechaInput.value = fechaValue;
+                
+                // Extraer la hora de fecha_cita para el input type="time" (HH:mm)
+                // Usar getHours() y getMinutes() para evitar problemas de zona horaria
+                const hours = String(fecha.getHours()).padStart(2, '0');
+                const minutes = String(fecha.getMinutes()).padStart(2, '0');
+                horaInput.value = `${hours}:${minutes}`;
+            } else {
+                // Si no se puede parsear, intentar extraer fecha directamente
+                if (cita.fecha_cita.includes('T')) {
+                    const parts = cita.fecha_cita.split('T');
+                    fechaInput.value = parts[0];
+                    if (parts[1]) {
+                        const horaPart = parts[1].substring(0, 5); // HH:mm
+                        horaInput.value = horaPart;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error parseando fecha_cita:', error);
+            // Fallback: intentar extraer fecha directamente
+            if (cita.fecha_cita.includes('T')) {
+                const parts = cita.fecha_cita.split('T');
+                fechaInput.value = parts[0];
+                if (parts[1]) {
+                    const horaPart = parts[1].substring(0, 5);
+                    horaInput.value = horaPart;
+                }
+            }
         }
-        document.getElementById('fecha_cita').value = fechaValue;
     }
     
-    // Format hour for input (input type="time" espera HH:MM, no HH:MM:SS)
-    if (cita.hora_cita) {
+    // Si hay hora_cita separada y el input de hora está vacío, usarla
+    if (cita.hora_cita && !horaInput.value) {
         let horaValue = cita.hora_cita;
         // Si viene como HH:MM:SS, extraer solo HH:MM
         if (horaValue.length >= 5) {
             horaValue = horaValue.substring(0, 5);
         }
-        document.getElementById('hora_cita').value = horaValue;
+        horaInput.value = horaValue;
     }
     
     document.getElementById('observaciones').value = cita.observaciones || '';
@@ -644,19 +673,35 @@ async function handleSaveCita(e) {
         return;
     }
 
-    // Formatear hora para TimeSpan
-    // TimeSpan en .NET acepta formato "HH:mm:ss" o "HH:mm"
-    // Probamos primero con "HH:mm" (sin segundos) ya que es más común
-    let horaFormateada = horaSeleccionada;
-    // El input type="time" devuelve formato HH:mm, mantenerlo así
-    // TimeSpan en .NET puede parsear "HH:mm" directamente
-    // Si el servidor requiere segundos, se puede agregar :00 después
+    // Formatear fecha_cita como ISO string combinando fecha + hora
+    // fecha_cita debe ser un DateTime completo en formato ISO (YYYY-MM-DDTHH:mm:ss.sssZ)
+    let fechaCitaIso = null;
+    try {
+        // Combinar fecha y hora
+        // El input type="time" devuelve formato HH:mm
+        const fechaHoraString = `${fechaSeleccionada}T${horaSeleccionada}:00`;
+        const fechaHora = new Date(fechaHoraString);
+        
+        if (isNaN(fechaHora.getTime())) {
+            showToast('Fecha u hora de la cita inválida', 'error');
+            return;
+        }
+        
+        fechaCitaIso = fechaHora.toISOString();
+    } catch (error) {
+        console.error('Error formateando fecha:', error);
+        showToast('Error al formatear la fecha de la cita', 'error');
+        return;
+    }
+
+    // hora_cita es un string simple (HH:mm o HH:mm:ss)
+    const horaFormateada = horaSeleccionada;
 
     // Construir objeto de datos según si es creación o edición
-    // La API espera un objeto anidado llamado "cita"
-    // fecha_cita debe ser solo la fecha en formato YYYY-MM-DD
-    // hora_cita debe ser en formato compatible con TimeSpan (HH:mm)
-    // Para POST (nueva cita): NO enviar id_cita (es autoincremental en BD)
+    // Los campos van directamente (no en objeto anidado)
+    // fecha_cita debe ser un DateTime ISO string
+    // hora_cita debe ser un string (HH:mm)
+    // Para POST (nueva cita): NO enviar id_cita ni fecha_creacion
     // Para PUT (editar cita): enviar id_cita y fecha_creacion
     
     let citaData;
@@ -665,35 +710,31 @@ async function handleSaveCita(e) {
         // PUT - Editar cita existente
         const existingCita = citas.find(c => c.id_cita === editingCitaId);
         citaData = {
-            cita: {
-                id_cita: editingCitaId,
-                id_cliente: idCliente,
-                id_trabajador: idTrabajador,
-                id_servicio: idServicio,
-                fecha_cita: fechaSeleccionada, // Solo fecha en formato YYYY-MM-DD
-                hora_cita: horaFormateada, // Hora en formato HH:mm para TimeSpan
-                estado: estado,
-                observaciones: observaciones
-            }
+            id_cita: editingCitaId,
+            id_cliente: idCliente,
+            id_trabajador: idTrabajador,
+            id_servicio: idServicio,
+            fecha_cita: fechaCitaIso, // DateTime ISO string
+            hora_cita: horaFormateada, // String (HH:mm)
+            estado: estado,
+            observaciones: observaciones
         };
         // Agregar fecha_creacion si existe
         if (existingCita && existingCita.fecha_creacion) {
-            citaData.cita.fecha_creacion = existingCita.fecha_creacion;
+            citaData.fecha_creacion = existingCita.fecha_creacion;
         }
     } else {
-        // POST - Nueva cita (NO incluir id_cita)
+        // POST - Nueva cita (NO incluir id_cita ni fecha_creacion)
         citaData = {
-            cita: {
-                id_cliente: idCliente,
-                id_trabajador: idTrabajador,
-                id_servicio: idServicio,
-                fecha_cita: fechaSeleccionada, // Solo fecha en formato YYYY-MM-DD
-                hora_cita: horaFormateada, // Hora en formato HH:mm para TimeSpan
-                estado: estado,
-                observaciones: observaciones
-            }
+            id_cliente: idCliente,
+            id_trabajador: idTrabajador,
+            id_servicio: idServicio,
+            fecha_cita: fechaCitaIso, // DateTime ISO string
+            hora_cita: horaFormateada, // String (HH:mm)
+            estado: estado,
+            observaciones: observaciones
         };
-        // NO incluir id_cita - la base de datos lo genera automáticamente
+        // NO incluir id_cita ni fecha_creacion - la base de datos los genera automáticamente
     }
     
     try {

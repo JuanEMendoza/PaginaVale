@@ -49,23 +49,59 @@ namespace ApiPeluqueria.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> Putfacturas(int id, [FromBody] facturas facturas)
         {
+            // Validar que el objeto no sea nulo
             if (facturas == null)
             {
-                return BadRequest("Los datos de la factura no pueden ser nulos");
+                return BadRequest(new { message = "Los datos de la factura no pueden ser nulos" });
             }
 
+            // Validar que el ID de la URL coincida con el ID del cuerpo
             if (id != facturas.id_factura)
             {
-                return BadRequest("El ID de la URL no coincide con el ID de la factura");
+                return BadRequest(new { message = "El ID de la URL no coincide con el ID de la factura" });
+            }
+
+            // Validar campos requeridos
+            if (facturas.id_cita <= 0)
+            {
+                return BadRequest(new { message = "El ID de la cita es requerido y debe ser mayor a 0" });
+            }
+
+            if (facturas.total <= 0)
+            {
+                return BadRequest(new { message = "El total debe ser mayor a 0" });
+            }
+
+            if (string.IsNullOrWhiteSpace(facturas.metodo_pago))
+            {
+                return BadRequest(new { message = "El método de pago es requerido" });
+            }
+
+            // Validar que la fecha_emision sea válida
+            if (facturas.fecha_emision == default(DateTime) || facturas.fecha_emision == DateTime.MinValue)
+            {
+                return BadRequest(new { message = "La fecha de emisión es requerida y debe ser válida" });
+            }
+
+            // Asegurar que la fecha esté en UTC si viene del frontend
+            // El frontend envía fechas en formato ISO 8601 UTC (ej: "2025-11-10T16:33:25.945Z")
+            if (facturas.fecha_emision.Kind != DateTimeKind.Utc)
+            {
+                facturas.fecha_emision = facturas.fecha_emision.ToUniversalTime();
             }
 
             // Verificar que la factura existe
-            if (!facturasExists(id))
+            var facturaExistente = await _context.facturas.FindAsync(id);
+            if (facturaExistente == null)
             {
-                return NotFound();
+                return NotFound(new { message = $"La factura con ID {id} no existe" });
             }
 
-            _context.Entry(facturas).State = EntityState.Modified;
+            // Actualizar los campos de la factura existente
+            facturaExistente.id_cita = facturas.id_cita;
+            facturaExistente.total = facturas.total;
+            facturaExistente.metodo_pago = facturas.metodo_pago;
+            facturaExistente.fecha_emision = facturas.fecha_emision;
 
             try
             {
@@ -75,7 +111,7 @@ namespace ApiPeluqueria.Controllers
             {
                 if (!facturasExists(id))
                 {
-                    return NotFound();
+                    return NotFound(new { message = $"La factura con ID {id} ya no existe" });
                 }
                 else
                 {
@@ -84,10 +120,19 @@ namespace ApiPeluqueria.Controllers
             }
             catch (DbUpdateException ex)
             {
-                return StatusCode(500, new { message = "Error al actualizar la factura en la base de datos", error = ex.Message });
+                return StatusCode(500, new { message = "Error al actualizar la factura en la base de datos", error = ex.InnerException?.Message ?? ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error inesperado al actualizar la factura", error = ex.Message });
             }
 
-            return NoContent();
+            // La factura existente ya tiene los valores actualizados
+            // Si necesitas valores calculados o triggers de la BD, puedes recargarla:
+            // await _context.Entry(facturaExistente).ReloadAsync();
+            
+            // Devolver la factura actualizada con código 200 (OK)
+            return Ok(facturaExistente);
         }
 
         // POST: api/facturas

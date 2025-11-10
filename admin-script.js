@@ -1468,12 +1468,47 @@ async function handleSaveFactura(e) {
             return;
         }
         
-        const result = await response.json();
-        console.log('========================================');
-        console.log('✅ FACTURA GUARDADA EXITOSAMENTE');
-        console.log('========================================');
-        console.log('Respuesta del servidor:', JSON.stringify(result, null, 2));
-        console.log('========================================');
+        // Manejar respuesta: PUT devuelve NoContent (204) sin cuerpo, POST devuelve JSON (201)
+        let result = null;
+        
+        // Verificar el status code: 204 (NoContent) no tiene cuerpo, no intentar parsear
+        if (response.status === 204) {
+            // 204 NoContent - Actualización exitosa sin cuerpo de respuesta
+            console.log('========================================');
+            console.log('✅ FACTURA ACTUALIZADA EXITOSAMENTE');
+            console.log('========================================');
+            console.log('Status: 204 NoContent (sin cuerpo)');
+            console.log('========================================');
+        } else {
+            // Para 201 (Created) y otros códigos de éxito, intentar parsear JSON
+            try {
+                const responseText = await response.text();
+                if (responseText && responseText.trim().length > 0) {
+                    result = JSON.parse(responseText);
+                    console.log('========================================');
+                    console.log('✅ FACTURA GUARDADA EXITOSAMENTE');
+                    console.log('========================================');
+                    console.log('Status:', response.status);
+                    console.log('Respuesta del servidor:', JSON.stringify(result, null, 2));
+                    console.log('========================================');
+                } else {
+                    console.log('========================================');
+                    console.log('✅ FACTURA GUARDADA EXITOSAMENTE');
+                    console.log('========================================');
+                    console.log('Status:', response.status);
+                    console.log('Respuesta sin contenido');
+                    console.log('========================================');
+                }
+            } catch (e) {
+                // Si falla el parseo pero el status es éxito, asumir que fue exitoso
+                console.warn('No se pudo parsear la respuesta como JSON, pero el status es éxito:', e);
+                console.log('========================================');
+                console.log('✅ FACTURA GUARDADA EXITOSAMENTE');
+                console.log('========================================');
+                console.log('Status:', response.status);
+                console.log('========================================');
+            }
+        }
         
         showToast(
             editingFacturaId ? 'Factura actualizada exitosamente' : 'Factura creada exitosamente',

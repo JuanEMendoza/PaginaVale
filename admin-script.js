@@ -633,43 +633,60 @@ function editCita(id) {
 async function handleSaveCita(e) {
     e.preventDefault();
     
+    // Obtener valores del formulario
     const formData = new FormData(citaForm);
-    const idCliente = parseInt(formData.get('id_cliente'), 10);
-    const idTrabajador = parseInt(formData.get('id_trabajador'), 10);
-    const idServicio = parseInt(formData.get('id_servicio'), 10);
-    const fechaSeleccionada = formData.get('fecha_cita');
-    const horaSeleccionada = formData.get('hora_cita');
-    const estado = formData.get('estado');
-    const observaciones = formData.get('observaciones') || '';
+    
+    // Leer valores directamente de los inputs para asegurar que se obtienen correctamente
+    const clienteSelect = document.getElementById('id_cliente');
+    const trabajadorSelect = document.getElementById('id_trabajador');
+    const servicioSelect = document.getElementById('id_servicio');
+    const fechaInput = document.getElementById('fecha_cita');
+    const horaInput = document.getElementById('hora_cita');
+    const estadoSelect = document.getElementById('estado');
+    const observacionesTextarea = document.getElementById('observaciones');
+    
+    const idCliente = clienteSelect ? parseInt(clienteSelect.value, 10) : parseInt(formData.get('id_cliente'), 10);
+    const idTrabajador = trabajadorSelect ? parseInt(trabajadorSelect.value, 10) : parseInt(formData.get('id_trabajador'), 10);
+    const idServicio = servicioSelect ? parseInt(servicioSelect.value, 10) : parseInt(formData.get('id_servicio'), 10);
+    const fechaSeleccionada = fechaInput ? fechaInput.value : formData.get('fecha_cita');
+    const horaSeleccionada = horaInput ? horaInput.value : formData.get('hora_cita');
+    const estado = estadoSelect ? estadoSelect.value : formData.get('estado');
+    const observaciones = observacionesTextarea ? observacionesTextarea.value.trim() : (formData.get('observaciones') || '').trim();
 
-    // Validar campos requeridos
-    if (Number.isNaN(idCliente) || idCliente <= 0) {
+    // Validar campos requeridos con mensajes específicos
+    if (!idCliente || Number.isNaN(idCliente) || idCliente <= 0) {
         showToast('Por favor selecciona un cliente válido', 'error');
+        if (clienteSelect) clienteSelect.focus();
         return;
     }
 
-    if (Number.isNaN(idTrabajador) || idTrabajador <= 0) {
+    if (!idTrabajador || Number.isNaN(idTrabajador) || idTrabajador <= 0) {
         showToast('Por favor selecciona un trabajador válido', 'error');
+        if (trabajadorSelect) trabajadorSelect.focus();
         return;
     }
 
-    if (Number.isNaN(idServicio) || idServicio <= 0) {
+    if (!idServicio || Number.isNaN(idServicio) || idServicio <= 0) {
         showToast('Por favor selecciona un servicio válido', 'error');
+        if (servicioSelect) servicioSelect.focus();
         return;
     }
 
-    if (!fechaSeleccionada) {
+    if (!fechaSeleccionada || fechaSeleccionada.trim() === '') {
         showToast('Por favor selecciona una fecha para la cita', 'error');
+        if (fechaInput) fechaInput.focus();
         return;
     }
 
-    if (!horaSeleccionada) {
+    if (!horaSeleccionada || horaSeleccionada.trim() === '') {
         showToast('Por favor selecciona una hora para la cita', 'error');
+        if (horaInput) horaInput.focus();
         return;
     }
 
-    if (!estado) {
+    if (!estado || estado.trim() === '') {
         showToast('Por favor selecciona un estado para la cita', 'error');
+        if (estadoSelect) estadoSelect.focus();
         return;
     }
 
@@ -679,63 +696,54 @@ async function handleSaveCita(e) {
     try {
         // Combinar fecha y hora
         // El input type="time" devuelve formato HH:mm
-        const fechaHoraString = `${fechaSeleccionada}T${horaSeleccionada}:00`;
+        // Crear string en formato ISO local primero
+        const fechaHoraString = `${fechaSeleccionada.trim()}T${horaSeleccionada.trim()}:00`;
         const fechaHora = new Date(fechaHoraString);
         
         if (isNaN(fechaHora.getTime())) {
-            showToast('Fecha u hora de la cita inválida', 'error');
+            console.error('Fecha inválida:', fechaHoraString);
+            showToast('Fecha u hora de la cita inválida. Verifica los valores seleccionados.', 'error');
             return;
         }
         
         fechaCitaIso = fechaHora.toISOString();
+        console.log('Fecha formateada:', fechaCitaIso);
     } catch (error) {
         console.error('Error formateando fecha:', error);
-        showToast('Error al formatear la fecha de la cita', 'error');
+        showToast('Error al formatear la fecha de la cita. Por favor verifica los valores.', 'error');
         return;
     }
 
-    // hora_cita es un string simple (HH:mm o HH:mm:ss)
-    const horaFormateada = horaSeleccionada;
+    // hora_cita es un string simple (HH:mm)
+    const horaFormateada = horaSeleccionada.trim();
 
     // Construir objeto de datos según si es creación o edición
     // Los campos van directamente (no en objeto anidado)
     // fecha_cita debe ser un DateTime ISO string
     // hora_cita debe ser un string (HH:mm)
-    // Para POST (nueva cita): NO enviar id_cita ni fecha_creacion
-    // Para PUT (editar cita): enviar id_cita y fecha_creacion
     
-    let citaData;
+    const isEdit = !!editingCitaId;
     
-    if (editingCitaId) {
-        // PUT - Editar cita existente
+    // Construir objeto base
+    const citaData = {
+        id_cliente: idCliente,
+        id_trabajador: idTrabajador,
+        id_servicio: idServicio,
+        fecha_cita: fechaCitaIso,
+        hora_cita: horaFormateada,
+        estado: estado.trim(),
+        observaciones: observaciones
+    };
+    
+    // Solo agregar id_cita y fecha_creacion si es edición (PUT)
+    if (isEdit) {
+        citaData.id_cita = editingCitaId;
         const existingCita = citas.find(c => c.id_cita === editingCitaId);
-        citaData = {
-            id_cita: editingCitaId,
-            id_cliente: idCliente,
-            id_trabajador: idTrabajador,
-            id_servicio: idServicio,
-            fecha_cita: fechaCitaIso, // DateTime ISO string
-            hora_cita: horaFormateada, // String (HH:mm)
-            estado: estado,
-            observaciones: observaciones
-        };
-        // Agregar fecha_creacion si existe
         if (existingCita && existingCita.fecha_creacion) {
             citaData.fecha_creacion = existingCita.fecha_creacion;
         }
-    } else {
-        // POST - Nueva cita (NO incluir id_cita ni fecha_creacion)
-        citaData = {
-            id_cliente: idCliente,
-            id_trabajador: idTrabajador,
-            id_servicio: idServicio,
-            fecha_cita: fechaCitaIso, // DateTime ISO string
-            hora_cita: horaFormateada, // String (HH:mm)
-            estado: estado,
-            observaciones: observaciones
-        };
-        // NO incluir id_cita ni fecha_creacion - la base de datos los genera automáticamente
     }
+    // Para POST (nueva cita): NO incluir id_cita ni fecha_creacion
     
     try {
         setSaveLoading(true);

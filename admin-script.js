@@ -1340,23 +1340,49 @@ async function handleSaveFactura(e) {
     }
     
     // Construir objeto de datos según si es creación o edición
-    // Para POST (nueva factura): NO enviar id_factura (es autoincremental) ni fecha_emision
-    // Para PUT (editar factura): enviar id_factura y fecha_emision si existe
+    // Para POST (nueva factura): NO enviar id_factura (es autoincremental), SÍ enviar fecha_emision
+    // Para PUT (editar factura): enviar id_factura y fecha_emision
     const facturaData = {
         id_cita: idCita,
         total: total,
         metodo_pago: metodoPago
     };
     
-    // Solo agregar id_factura y fecha_emision si es edición (PUT)
+    // Obtener fecha_emision del formulario
+    const fechaEmision = formData.get('fecha_emision');
+    if (fechaEmision) {
+        // Convertir fecha de formato YYYY-MM-DD a ISO 8601 con hora actual en UTC
+        // Ejemplo: "2025-11-10" -> "2025-11-10T15:40:15.053Z"
+        // El input type="date" devuelve formato YYYY-MM-DD
+        const ahora = new Date();
+        // Crear fecha usando la fecha seleccionada pero con la hora actual
+        // Usar UTC para evitar problemas de zona horaria
+        const año = parseInt(fechaEmision.split('-')[0], 10);
+        const mes = parseInt(fechaEmision.split('-')[1], 10) - 1; // Los meses en JS son 0-indexed
+        const dia = parseInt(fechaEmision.split('-')[2], 10);
+        
+        // Crear fecha en UTC con la hora actual
+        const fechaCompleta = new Date(Date.UTC(
+            año, 
+            mes, 
+            dia, 
+            ahora.getUTCHours(), 
+            ahora.getUTCMinutes(), 
+            ahora.getUTCSeconds(), 
+            ahora.getUTCMilliseconds()
+        ));
+        
+        facturaData.fecha_emision = fechaCompleta.toISOString();
+    } else {
+        // Si no se proporciona fecha, usar la fecha y hora actual en UTC
+        facturaData.fecha_emision = new Date().toISOString();
+    }
+    
+    // Solo agregar id_factura si es edición (PUT)
     if (editingFacturaId) {
         facturaData.id_factura = editingFacturaId;
-        const fechaEmision = formData.get('fecha_emision');
-        if (fechaEmision) {
-            facturaData.fecha_emision = fechaEmision;
-        }
     }
-    // Para nueva factura (POST), NO enviar id_factura ni fecha_emision
+    // Para nueva factura (POST), NO enviar id_factura (es autoincremental)
     
     try {
         setFacturaSaveLoading(true);

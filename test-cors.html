@@ -70,6 +70,9 @@
             <button class="test-button" onclick="testCors('POST', 'https://apipeluqueria-1.onrender.com/api/citas')">
                 Test POST /api/citas
             </button>
+            <button class="test-button" onclick="testCors('POST', 'https://apipeluqueria-1.onrender.com/api/facturas')">
+                Test POST /api/facturas
+            </button>
             <button class="test-button" onclick="testAll()">
                 Test Todos los Endpoints
             </button>
@@ -176,6 +179,13 @@ ${error.message.includes('CORS') || error.message.includes('blocked') ?
                 hora_cita: "10:00",
                 estado: "pendiente",
                 observaciones: "Test CORS"
+            });
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await testCors('POST', 'https://apipeluqueria-1.onrender.com/api/facturas', {
+                id_cita: 1,
+                total: 50000,
+                metodo_pago: "efectivo"
             });
         }
     </script>

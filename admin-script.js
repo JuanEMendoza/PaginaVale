@@ -559,10 +559,54 @@ function fillFormWithCita(cita) {
     document.getElementById('estado').value = cita.estado || '';
     
     // Format date and time for inputs
-    // fecha_cita ahora viene como ISO string (DateTime completo)
+    // fecha_cita viene como ISO string (DateTime completo)
+    // hora_cita viene en formato "HH:mm a. m." o "HH:mm p. m."
     const fechaInput = document.getElementById('fecha_cita');
     const horaInput = document.getElementById('hora_cita');
     
+    // Función para convertir hora de formato 12h a 24h para el input type="time"
+    function convertirHora12a24(hora12) {
+        if (!hora12) return '';
+        
+        // Si ya está en formato 24h (HH:mm), retornarlo
+        if (!hora12.includes('a. m.') && !hora12.includes('p. m.') && !hora12.includes('am') && !hora12.includes('pm')) {
+            // Puede ser formato 24h, retornar solo HH:mm
+            return hora12.substring(0, 5);
+        }
+        
+        try {
+            // Extraer horas, minutos y AM/PM
+            const partes = hora12.trim().split(' ');
+            if (partes.length < 2) return '';
+            
+            const horaMin = partes[0].split(':');
+            if (horaMin.length < 2) return '';
+            
+            let horas = parseInt(horaMin[0], 10);
+            const minutos = horaMin[1].padStart(2, '0');
+            const ampm = partes[1].toLowerCase();
+            
+            if (isNaN(horas) || isNaN(parseInt(minutos, 10))) return '';
+            
+            // Convertir a formato 24 horas
+            if (ampm.includes('p.') || ampm.includes('pm')) {
+                if (horas !== 12) {
+                    horas = horas + 12;
+                }
+            } else if (ampm.includes('a.') || ampm.includes('am')) {
+                if (horas === 12) {
+                    horas = 0;
+                }
+            }
+            
+            return `${String(horas).padStart(2, '0')}:${minutos}`;
+        } catch (error) {
+            console.error('Error convirtiendo hora:', error);
+            return '';
+        }
+    }
+    
+    // Procesar fecha_cita
     if (cita.fecha_cita) {
         try {
             const fecha = new Date(cita.fecha_cita);
@@ -571,17 +615,18 @@ function fillFormWithCita(cita) {
                 const fechaValue = fecha.toISOString().split('T')[0];
                 fechaInput.value = fechaValue;
                 
-                // Extraer la hora de fecha_cita para el input type="time" (HH:mm)
-                // Usar getHours() y getMinutes() para evitar problemas de zona horaria
-                const hours = String(fecha.getHours()).padStart(2, '0');
-                const minutes = String(fecha.getMinutes()).padStart(2, '0');
-                horaInput.value = `${hours}:${minutes}`;
+                // Si no hay hora_cita separada, extraer la hora de fecha_cita
+                if (!cita.hora_cita || !horaInput.value) {
+                    const hours = String(fecha.getHours()).padStart(2, '0');
+                    const minutes = String(fecha.getMinutes()).padStart(2, '0');
+                    horaInput.value = `${hours}:${minutes}`;
+                }
             } else {
                 // Si no se puede parsear, intentar extraer fecha directamente
                 if (cita.fecha_cita.includes('T')) {
                     const parts = cita.fecha_cita.split('T');
                     fechaInput.value = parts[0];
-                    if (parts[1]) {
+                    if (parts[1] && !cita.hora_cita) {
                         const horaPart = parts[1].substring(0, 5); // HH:mm
                         horaInput.value = horaPart;
                     }
@@ -589,26 +634,20 @@ function fillFormWithCita(cita) {
             }
         } catch (error) {
             console.error('Error parseando fecha_cita:', error);
-            // Fallback: intentar extraer fecha directamente
             if (cita.fecha_cita.includes('T')) {
                 const parts = cita.fecha_cita.split('T');
                 fechaInput.value = parts[0];
-                if (parts[1]) {
-                    const horaPart = parts[1].substring(0, 5);
-                    horaInput.value = horaPart;
-                }
             }
         }
     }
     
-    // Si hay hora_cita separada y el input de hora está vacío, usarla
-    if (cita.hora_cita && !horaInput.value) {
-        let horaValue = cita.hora_cita;
-        // Si viene como HH:MM:SS, extraer solo HH:MM
-        if (horaValue.length >= 5) {
-            horaValue = horaValue.substring(0, 5);
+    // Procesar hora_cita (formato "HH:mm a. m." o "HH:mm p. m.")
+    if (cita.hora_cita) {
+        // Convertir de formato 12h a 24h para el input type="time"
+        const hora24 = convertirHora12a24(cita.hora_cita);
+        if (hora24) {
+            horaInput.value = hora24;
         }
-        horaInput.value = horaValue;
     }
     
     document.getElementById('observaciones').value = cita.observaciones || '';
@@ -629,14 +668,62 @@ function editCita(id) {
     }
 }
 
+// Función para convertir hora de formato 24h (HH:mm) a formato 12h (HH:mm a. m./p. m.)
+// Formato exacto requerido: "09:09 a. m." o "09:09 p. m."
+function formatHora12(hora24) {
+    if (!hora24) return '';
+    
+    // Si ya está en formato 12h con "a. m." o "p. m.", retornarlo tal cual
+    if (hora24.includes('a. m.') || hora24.includes('p. m.')) {
+        return hora24.trim();
+    }
+    
+    // Si tiene am/pm sin puntos, convertir al formato con puntos
+    if (hora24.toLowerCase().includes('am') || hora24.toLowerCase().includes('pm')) {
+        return hora24
+            .replace(/am/gi, 'a. m.')
+            .replace(/pm/gi, 'p. m.')
+            .trim();
+    }
+    
+    // Extraer horas y minutos del formato HH:mm (24 horas)
+    const partes = hora24.trim().split(':');
+    if (partes.length < 2) {
+        console.warn('Formato de hora inválido:', hora24);
+        return hora24;
+    }
+    
+    let horas = parseInt(partes[0].trim(), 10);
+    let minutosStr = partes[1].trim();
+    
+    // Limpiar minutos (puede tener segundos o espacios)
+    const minutos = parseInt(minutosStr.substring(0, 2), 10);
+    
+    if (isNaN(horas) || isNaN(minutos) || horas < 0 || horas > 23 || minutos < 0 || minutos > 59) {
+        console.warn('Valores de hora inválidos:', hora24);
+        return hora24;
+    }
+    
+    // Determinar AM/PM
+    const ampm = horas >= 12 ? 'p. m.' : 'a. m.';
+    
+    // Convertir a formato 12 horas
+    let horas12 = horas % 12;
+    horas12 = horas12 === 0 ? 12 : horas12; // 0 horas (medianoche) se convierte en 12
+    
+    // Formatear minutos con 2 dígitos siempre
+    const minutosFormateados = String(minutos).padStart(2, '0');
+    
+    // Retornar en formato exacto: "HH:mm a. m." o "HH:mm p. m."
+    // Ejemplo: "09:09 a. m." o "02:30 p. m."
+    return `${String(horas12).padStart(2, '0')}:${minutosFormateados} ${ampm}`;
+}
+
 // Handle save cita
 async function handleSaveCita(e) {
     e.preventDefault();
     
-    // Obtener valores del formulario
-    const formData = new FormData(citaForm);
-    
-    // Leer valores directamente de los inputs para asegurar que se obtienen correctamente
+    // Leer valores directamente de los inputs
     const clienteSelect = document.getElementById('id_cliente');
     const trabajadorSelect = document.getElementById('id_trabajador');
     const servicioSelect = document.getElementById('id_servicio');
@@ -645,105 +732,113 @@ async function handleSaveCita(e) {
     const estadoSelect = document.getElementById('estado');
     const observacionesTextarea = document.getElementById('observaciones');
     
-    const idCliente = clienteSelect ? parseInt(clienteSelect.value, 10) : parseInt(formData.get('id_cliente'), 10);
-    const idTrabajador = trabajadorSelect ? parseInt(trabajadorSelect.value, 10) : parseInt(formData.get('id_trabajador'), 10);
-    const idServicio = servicioSelect ? parseInt(servicioSelect.value, 10) : parseInt(formData.get('id_servicio'), 10);
-    const fechaSeleccionada = fechaInput ? fechaInput.value : formData.get('fecha_cita');
-    const horaSeleccionada = horaInput ? horaInput.value : formData.get('hora_cita');
-    const estado = estadoSelect ? estadoSelect.value : formData.get('estado');
-    const observaciones = observacionesTextarea ? observacionesTextarea.value.trim() : (formData.get('observaciones') || '').trim();
+    // Validar que los elementos existan
+    if (!clienteSelect || !trabajadorSelect || !servicioSelect || !fechaInput || !horaInput || !estadoSelect) {
+        showToast('Error: No se pueden leer los campos del formulario', 'error');
+        return;
+    }
+    
+    // Obtener valores
+    const idCliente = parseInt(clienteSelect.value, 10);
+    const idTrabajador = parseInt(trabajadorSelect.value, 10);
+    const idServicio = parseInt(servicioSelect.value, 10);
+    const fechaSeleccionada = fechaInput.value.trim();
+    const horaSeleccionada = horaInput.value.trim();
+    const estado = estadoSelect.value.trim();
+    const observaciones = observacionesTextarea ? observacionesTextarea.value.trim() : '';
 
-    // Validar campos requeridos con mensajes específicos
+    // Validar campos requeridos
     if (!idCliente || Number.isNaN(idCliente) || idCliente <= 0) {
         showToast('Por favor selecciona un cliente válido', 'error');
-        if (clienteSelect) clienteSelect.focus();
+        clienteSelect.focus();
         return;
     }
 
     if (!idTrabajador || Number.isNaN(idTrabajador) || idTrabajador <= 0) {
         showToast('Por favor selecciona un trabajador válido', 'error');
-        if (trabajadorSelect) trabajadorSelect.focus();
+        trabajadorSelect.focus();
         return;
     }
 
     if (!idServicio || Number.isNaN(idServicio) || idServicio <= 0) {
         showToast('Por favor selecciona un servicio válido', 'error');
-        if (servicioSelect) servicioSelect.focus();
+        servicioSelect.focus();
         return;
     }
 
-    if (!fechaSeleccionada || fechaSeleccionada.trim() === '') {
+    if (!fechaSeleccionada) {
         showToast('Por favor selecciona una fecha para la cita', 'error');
-        if (fechaInput) fechaInput.focus();
+        fechaInput.focus();
         return;
     }
 
-    if (!horaSeleccionada || horaSeleccionada.trim() === '') {
+    if (!horaSeleccionada) {
         showToast('Por favor selecciona una hora para la cita', 'error');
-        if (horaInput) horaInput.focus();
+        horaInput.focus();
         return;
     }
 
-    if (!estado || estado.trim() === '') {
+    if (!estado) {
         showToast('Por favor selecciona un estado para la cita', 'error');
-        if (estadoSelect) estadoSelect.focus();
+        estadoSelect.focus();
         return;
     }
 
-    // Formatear fecha_cita como ISO string combinando fecha + hora
-    // fecha_cita debe ser un DateTime completo en formato ISO (YYYY-MM-DDTHH:mm:ss.sssZ)
+    // Formatear fecha_cita como ISO string
+    // Combinar fecha (YYYY-MM-DD) y hora (HH:mm) y convertir a ISO
     let fechaCitaIso = null;
+    let fechaCreacionIso = null;
+    
     try {
-        // Combinar fecha y hora
-        // El input type="time" devuelve formato HH:mm
-        // Crear string en formato ISO local primero
-        const fechaHoraString = `${fechaSeleccionada.trim()}T${horaSeleccionada.trim()}:00`;
+        // Crear fecha combinando fecha y hora
+        // El input type="time" devuelve formato HH:mm (24 horas)
+        const fechaHoraString = `${fechaSeleccionada}T${horaSeleccionada}:00`;
         const fechaHora = new Date(fechaHoraString);
         
         if (isNaN(fechaHora.getTime())) {
             console.error('Fecha inválida:', fechaHoraString);
-            showToast('Fecha u hora de la cita inválida. Verifica los valores seleccionados.', 'error');
+            showToast('Fecha u hora de la cita inválida', 'error');
             return;
         }
         
+        // Convertir a ISO string
         fechaCitaIso = fechaHora.toISOString();
-        console.log('Fecha formateada:', fechaCitaIso);
+        fechaCreacionIso = new Date().toISOString(); // Fecha de creación es ahora
+        
+        console.log('Fecha cita (ISO):', fechaCitaIso);
+        console.log('Fecha creación (ISO):', fechaCreacionIso);
     } catch (error) {
         console.error('Error formateando fecha:', error);
-        showToast('Error al formatear la fecha de la cita. Por favor verifica los valores.', 'error');
+        showToast('Error al formatear la fecha de la cita', 'error');
         return;
     }
 
-    // hora_cita es un string simple (HH:mm)
-    const horaFormateada = horaSeleccionada.trim();
+    // Formatear hora_cita en formato 12 horas con a. m./p. m.
+    // Ejemplo: "09:09" -> "09:09 a. m."
+    const horaFormateada = formatHora12(horaSeleccionada);
 
-    // Construir objeto de datos según si es creación o edición
-    // Los campos van directamente (no en objeto anidado)
-    // fecha_cita debe ser un DateTime ISO string
-    // hora_cita debe ser un string (HH:mm)
-    
-    const isEdit = !!editingCitaId;
-    
-    // Construir objeto base
+    // Construir objeto de datos
+    // Según el JSON que funciona, incluye fecha_creacion incluso en POST
     const citaData = {
         id_cliente: idCliente,
         id_trabajador: idTrabajador,
         id_servicio: idServicio,
         fecha_cita: fechaCitaIso,
         hora_cita: horaFormateada,
-        estado: estado.trim(),
-        observaciones: observaciones
+        estado: estado,
+        observaciones: observaciones || 'string',
+        fecha_creacion: fechaCreacionIso
     };
     
-    // Solo agregar id_cita y fecha_creacion si es edición (PUT)
-    if (isEdit) {
+    // Si es edición (PUT), agregar id_cita
+    if (editingCitaId) {
         citaData.id_cita = editingCitaId;
+        // Para edición, mantener la fecha_creacion original si existe
         const existingCita = citas.find(c => c.id_cita === editingCitaId);
         if (existingCita && existingCita.fecha_creacion) {
             citaData.fecha_creacion = existingCita.fecha_creacion;
         }
     }
-    // Para POST (nueva cita): NO incluir id_cita ni fecha_creacion
     
     try {
         setSaveLoading(true);

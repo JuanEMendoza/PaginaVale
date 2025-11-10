@@ -40,6 +40,15 @@ namespace ApiPeluqueria
                           .AllowAnyMethod()                     // Permite GET, POST, PUT, DELETE, OPTIONS, PATCH, etc.
                           .AllowAnyHeader()                     // Permite cualquier header (Content-Type, Authorization, etc.)
                           .AllowCredentials();                  // Permite cookies y credenciales
+                          .WithExposedHeaders("*");             // Expone todos los headers en la respuesta
+                });
+
+                // Política alternativa más permisiva para desarrollo (opcional)
+                options.AddPolicy("AllowAll", policy =>
+                {
+                    policy.AllowAnyOrigin()
+                          .AllowAnyMethod()
+                          .AllowAnyHeader();
                 });
             });
 
@@ -62,22 +71,18 @@ namespace ApiPeluqueria
             // ==========================================================
             // ✅ ORDEN CRÍTICO DE MIDDLEWARES PARA CORS
             // ==========================================================
-            // 1. CORS debe ser el PRIMER middleware después de UseSwagger/UseSwaggerUI
-            // 2. UseRouting debe ir después de CORS
-            // 3. UseAuthorization debe ir después de UseRouting
+            // IMPORTANTE: CORS debe estar ANTES de UseRouting y UseAuthorization
+            // ASP.NET Core maneja automáticamente las peticiones OPTIONS (preflight)
             // ==========================================================
-
-            // Redirección HTTPS (comentado para evitar problemas, descomentar si es necesario)
-            // app.UseHttpsRedirection();
-
-            // ✅ CORS - DEBE IR PRIMERO (antes de Routing y Authorization)
-            app.UseCors("AllowRenderFrontend");
 
             // Habilitar caché
             app.UseResponseCaching();
 
-            // Routing
+            // Routing (debe ir antes de CORS en .NET 6+)
             app.UseRouting();
+
+            // ✅ CORS - DEBE IR DESPUÉS de UseRouting pero ANTES de UseAuthorization
+            app.UseCors("AllowRenderFrontend");
 
             // Authorization (si lo necesitas)
             app.UseAuthorization();

@@ -113,6 +113,8 @@ let editingCitaId = null;
 let deletingCitaId = null;
 let editingFacturaId = null;
 let deletingFacturaId = null;
+let editingUsuarioId = null;
+let deletingUsuarioId = null;
 let currentTab = 'citas';
 
 // DOM Elements - Common
@@ -158,6 +160,21 @@ const exportCsvBtn = document.getElementById('exportCsvBtn');
 const exportPdfBtn = document.getElementById('exportPdfBtn');
 const reporteFecha = document.getElementById('reporteFecha');
 const generarReporteBtn = document.getElementById('generarReporteBtn');
+
+// Usuarios DOM Elements
+const newUsuarioBtn = document.getElementById('newUsuarioBtn');
+const usuariosTableBody = document.getElementById('usuariosTableBody');
+const usuarioModal = document.getElementById('usuarioModal');
+const usuarioForm = document.getElementById('usuarioForm');
+const usuarioModalTitle = document.getElementById('usuarioModalTitle');
+const usuarioModalClose = document.getElementById('usuarioModalClose');
+const cancelUsuarioBtn = document.getElementById('cancelUsuarioBtn');
+const saveUsuarioBtn = document.getElementById('saveUsuarioBtn');
+
+const deleteUsuarioModal = document.getElementById('deleteUsuarioModal');
+const deleteUsuarioModalClose = document.getElementById('deleteUsuarioModalClose');
+const cancelDeleteUsuarioBtn = document.getElementById('cancelDeleteUsuarioBtn');
+const confirmDeleteUsuarioBtn = document.getElementById('confirmDeleteUsuarioBtn');
 const serviciosReportTableBody = document.getElementById('serviciosReportTableBody');
 const citasDiaReportTableBody = document.getElementById('citasDiaReportTableBody');
 const ventasReportTableBody = document.getElementById('ventasReportTableBody');
@@ -230,6 +247,15 @@ function setupEventListeners() {
     cancelDeleteFacturaBtn.addEventListener('click', closeDeleteFacturaModal);
     confirmDeleteFacturaBtn.addEventListener('click', handleDeleteFactura);
     
+    // Usuarios listeners
+    newUsuarioBtn.addEventListener('click', () => openUsuarioModal());
+    usuarioModalClose.addEventListener('click', closeUsuarioModal);
+    cancelUsuarioBtn.addEventListener('click', closeUsuarioModal);
+    usuarioForm.addEventListener('submit', handleSaveUsuario);
+    deleteUsuarioModalClose.addEventListener('click', closeDeleteUsuarioModal);
+    cancelDeleteUsuarioBtn.addEventListener('click', closeDeleteUsuarioModal);
+    confirmDeleteUsuarioBtn.addEventListener('click', handleDeleteUsuario);
+    
     // Close modals on outside click
     citaModal.addEventListener('click', (e) => {
         if (e.target === citaModal) closeCitaModal();
@@ -245,6 +271,14 @@ function setupEventListeners() {
     
     deleteFacturaModal.addEventListener('click', (e) => {
         if (e.target === deleteFacturaModal) closeDeleteFacturaModal();
+    });
+    
+    usuarioModal.addEventListener('click', (e) => {
+        if (e.target === usuarioModal) closeUsuarioModal();
+    });
+    
+    deleteUsuarioModal.addEventListener('click', (e) => {
+        if (e.target === deleteUsuarioModal) closeDeleteUsuarioModal();
     });
     
     // Reportes listeners
@@ -291,6 +325,23 @@ function setupEventListeners() {
             }
         });
     }
+    
+    // Event delegation para botones de acciones en la tabla de usuarios
+    if (usuariosTableBody) {
+        usuariosTableBody.addEventListener('click', (e) => {
+            const button = e.target.closest('button[data-action]');
+            if (!button) return;
+            
+            const action = button.getAttribute('data-action');
+            const usuarioId = parseInt(button.getAttribute('data-usuario-id'), 10);
+            
+            if (action === 'edit-usuario' && usuarioId) {
+                editUsuario(usuarioId);
+            } else if (action === 'delete-usuario' && usuarioId) {
+                confirmDeleteUsuario(usuarioId);
+            }
+        });
+    }
 }
 
 // Tab switching
@@ -304,6 +355,11 @@ function switchTab(tabName) {
     // Update tab content
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
     document.getElementById(`${tabName}Section`).classList.add('active');
+    
+    // Load data when switching to specific tabs
+    if (tabName === 'usuarios') {
+        loadUsuarios();
+    }
 }
 
 // Logout
@@ -317,6 +373,7 @@ function handleLogout() {
 // Load usuarios
 async function loadUsuarios() {
     try {
+        setTableLoading(true);
         const response = await fetch(API_USUARIOS);
 
         if (!response.ok) {
@@ -328,11 +385,97 @@ async function loadUsuarios() {
         populateClienteOptions();
         populateTrabajadorOptions();
         populateFacturaClienteFilterOptions();
+        
+        // Render usuarios table if we're on the usuarios tab
+        if (currentTab === 'usuarios') {
+            renderUsuarios();
+        }
 
     } catch (error) {
         console.error('Error loading usuarios:', error);
         showToast('Error al cargar los usuarios', 'error');
+        if (usuariosTableBody) {
+            usuariosTableBody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="empty-cell">
+                        Error al cargar los datos. Por favor, recarga la página.
+                    </td>
+                </tr>
+            `;
+        }
+    } finally {
+        setTableLoading(false);
     }
+}
+
+// Render usuarios table
+function renderUsuarios() {
+    if (!usuariosTableBody) return;
+    
+    if (usuarios.length === 0) {
+        usuariosTableBody.innerHTML = `
+            <tr>
+                <td colspan="8" class="empty-cell">
+                    No hay usuarios registrados
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    usuariosTableBody.innerHTML = usuarios.map(usuario => {
+        const fecha = usuario.fecha_registro ? new Date(usuario.fecha_registro) : null;
+        const fechaFormatted = fecha
+            ? fecha.toLocaleDateString('es-ES', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            })
+            : '-';
+        
+        const rolLabel = getRolLabel(usuario.rol);
+        const estadoLabel = getEstadoLabel(usuario.estado);
+        const telefono = usuario.telefono || '-';
+        
+        return `
+            <tr>
+                <td>${usuario.id_usuario}</td>
+                <td>${usuario.nombre || '-'}</td>
+                <td>${usuario.correo || '-'}</td>
+                <td>${telefono}</td>
+                <td>${rolLabel}</td>
+                <td>${estadoLabel}</td>
+                <td>${fechaFormatted}</td>
+                <td>
+                    <button class="btn-action btn-edit" data-usuario-id="${usuario.id_usuario}" data-action="edit-usuario">
+                        ✏️ Editar
+                    </button>
+                    <button class="btn-action btn-delete" data-usuario-id="${usuario.id_usuario}" data-action="delete-usuario">
+                        🗑️ Eliminar
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Get rol label
+function getRolLabel(rol) {
+    const roles = {
+        'administrador': '👑 Administrador',
+        'trabajador': '👨‍💼 Trabajador',
+        'cliente': '👤 Cliente'
+    };
+    return roles[rol] || rol;
+}
+
+// Get estado label
+function getEstadoLabel(estado) {
+    const estados = {
+        'activo': '✅ Activo',
+        'inactivo': '❌ Inactivo'
+    };
+    return estados[estado] || estado;
 }
 
 function buildUsuariosCollections() {
@@ -1590,6 +1733,352 @@ function setFacturaSaveLoading(loading) {
         saveFacturaBtn.disabled = false;
         btnText.style.display = 'inline';
         btnLoading.style.display = 'none';
+    }
+}
+
+// ========================================
+// USUARIOS CRUD FUNCTIONS
+// ========================================
+
+// Open usuario modal (new)
+function openUsuarioModal(usuario = null) {
+    editingUsuarioId = usuario ? usuario.id_usuario : null;
+    
+    if (usuario) {
+        usuarioModalTitle.textContent = 'Editar Usuario';
+        fillFormWithUsuario(usuario);
+    } else {
+        usuarioModalTitle.textContent = 'Nuevo Usuario';
+        usuarioForm.reset();
+    }
+    
+    usuarioModal.classList.add('show');
+}
+
+// Fill form with usuario data
+function fillFormWithUsuario(usuario) {
+    document.getElementById('usuarioId').value = usuario.id_usuario;
+    
+    const nombreInput = document.getElementById('nombre');
+    if (nombreInput) {
+        nombreInput.value = usuario.nombre || '';
+    }
+    
+    const correoInput = document.getElementById('correo');
+    if (correoInput) {
+        correoInput.value = usuario.correo || '';
+    }
+    
+    // No pre-fill password for security
+    const contrasenaInput = document.getElementById('contrasena');
+    if (contrasenaInput) {
+        contrasenaInput.value = '';
+        // Make password optional when editing
+        if (editingUsuarioId) {
+            contrasenaInput.removeAttribute('required');
+            contrasenaInput.placeholder = 'Dejar vacío para mantener la contraseña actual';
+        } else {
+            contrasenaInput.setAttribute('required', 'required');
+            contrasenaInput.placeholder = 'Ingrese la contraseña';
+        }
+    }
+    
+    const telefonoInput = document.getElementById('telefono');
+    if (telefonoInput) {
+        telefonoInput.value = usuario.telefono || '';
+    }
+    
+    const rolSelect = document.getElementById('rol');
+    if (rolSelect) {
+        rolSelect.value = usuario.rol || '';
+    }
+    
+    const estadoSelect = document.getElementById('estado');
+    if (estadoSelect) {
+        estadoSelect.value = usuario.estado || 'activo';
+    }
+}
+
+// Close usuario modal
+function closeUsuarioModal() {
+    usuarioModal.classList.remove('show');
+    usuarioForm.reset();
+    editingUsuarioId = null;
+    
+    // Reset password field
+    const contrasenaInput = document.getElementById('contrasena');
+    if (contrasenaInput) {
+        contrasenaInput.setAttribute('required', 'required');
+        contrasenaInput.placeholder = 'Ingrese la contraseña';
+    }
+}
+
+// Edit usuario
+function editUsuario(id) {
+    const usuario = usuarios.find(u => u.id_usuario === id);
+    if (usuario) {
+        openUsuarioModal(usuario);
+    }
+}
+
+// Handle save usuario
+async function handleSaveUsuario(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(usuarioForm);
+    const nombre = formData.get('nombre')?.trim();
+    const correo = formData.get('correo')?.trim();
+    const contrasena = formData.get('contrasena');
+    const telefono = formData.get('telefono')?.trim();
+    const rol = formData.get('rol');
+    const estado = formData.get('estado');
+    
+    // Validar campos requeridos
+    if (!nombre) {
+        showToast('Por favor ingresa un nombre', 'error');
+        return;
+    }
+    
+    if (!correo) {
+        showToast('Por favor ingresa un correo electrónico', 'error');
+        return;
+    }
+    
+    if (!rol) {
+        showToast('Por favor selecciona un rol', 'error');
+        return;
+    }
+    
+    if (!estado) {
+        showToast('Por favor selecciona un estado', 'error');
+        return;
+    }
+    
+    // Para nuevas usuarios, la contraseña es requerida
+    if (!editingUsuarioId && !contrasena) {
+        showToast('Por favor ingresa una contraseña', 'error');
+        return;
+    }
+    
+    // Construir objeto de datos
+    const usuarioData = {
+        nombre: nombre,
+        correo: correo,
+        telefono: telefono || null,
+        rol: rol,
+        estado: estado
+    };
+    
+    // Solo agregar contraseña si se proporciona (para edición) o si es nueva
+    if (contrasena && contrasena.trim().length > 0) {
+        usuarioData.contrasena = contrasena;
+    }
+    
+    // Solo agregar id_usuario si es edición (PUT)
+    if (editingUsuarioId) {
+        usuarioData.id_usuario = editingUsuarioId;
+    }
+    
+    // Para nueva usuario (POST), agregar fecha_registro
+    if (!editingUsuarioId) {
+        usuarioData.fecha_registro = new Date().toISOString();
+    }
+    
+    try {
+        setUsuarioSaveLoading(true);
+        
+        const url = editingUsuarioId 
+            ? `${API_USUARIOS}/${editingUsuarioId}`
+            : API_USUARIOS;
+        
+        const method = editingUsuarioId ? 'PUT' : 'POST';
+        
+        console.log('========================================');
+        console.log('📤 ENVIANDO USUARIO');
+        console.log('========================================');
+        console.log('URL:', url);
+        console.log('Método:', method);
+        console.log('Es edición:', !!editingUsuarioId);
+        console.log('Datos a enviar:', JSON.stringify({...usuarioData, contrasena: '***'}, null, 2));
+        console.log('========================================');
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(usuarioData)
+        });
+        
+        console.log('========================================');
+        console.log('📥 RESPUESTA DEL SERVIDOR');
+        console.log('========================================');
+        console.log('Status:', response.status);
+        console.log('Status Text:', response.statusText);
+        
+        if (!response.ok) {
+            let errorMessage = 'Error al guardar el usuario';
+            let errorDetails = null;
+            
+            try {
+                const errorText = await response.text();
+                console.log('Error Text (raw):', errorText);
+                
+                if (errorText) {
+                    errorMessage = errorText;
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        errorDetails = errorJson;
+                        console.log('Error JSON:', errorJson);
+                        
+                        if (errorJson.message) {
+                            errorMessage = errorJson.message;
+                        } else if (errorJson.error) {
+                            errorMessage = errorJson.error;
+                        } else if (errorJson.detail) {
+                            errorMessage = errorJson.detail;
+                        }
+                    } catch (e) {
+                        console.log('Error no es JSON, usando texto directo');
+                        errorMessage = errorText;
+                    }
+                }
+            } catch (e) {
+                console.error('❌ Error leyendo respuesta de error:', e);
+            }
+            
+            console.error('========================================');
+            console.error('❌ ERROR AL GUARDAR USUARIO');
+            console.error('========================================');
+            console.error('Status Code:', response.status);
+            console.error('Mensaje de Error:', errorMessage);
+            console.error('Detalles del Error:', errorDetails);
+            console.error('Datos enviados:', {...usuarioData, contrasena: '***'});
+            console.error('========================================');
+            
+            const errorDisplay = errorMessage.length > 100 
+                ? errorMessage.substring(0, 100) + '...' 
+                : errorMessage;
+            showToast(`Error ${response.status}: ${errorDisplay}`, 'error');
+            
+            if (errorMessage && errorMessage.length < 200) {
+                alert(`Error al guardar el usuario:\n\n${errorMessage}\n\nRevisa la consola (F12) para más detalles.`);
+            }
+            
+            return;
+        }
+        
+        // Manejar respuesta: PUT devuelve 200 OK o 204 NoContent, POST devuelve 201 Created
+        let result = null;
+        
+        if (response.status === 204) {
+            console.log('========================================');
+            console.log('✅ USUARIO ACTUALIZADO EXITOSAMENTE');
+            console.log('========================================');
+            console.log('Status: 204 NoContent (sin cuerpo)');
+            console.log('========================================');
+        } else {
+            try {
+                const responseText = await response.text();
+                if (responseText && responseText.trim().length > 0) {
+                    result = JSON.parse(responseText);
+                    console.log('========================================');
+                    console.log('✅ USUARIO GUARDADO EXITOSAMENTE');
+                    console.log('========================================');
+                    console.log('Status:', response.status);
+                    console.log('Respuesta del servidor:', JSON.stringify({...result, contrasena: '***'}, null, 2));
+                    console.log('========================================');
+                }
+            } catch (e) {
+                console.warn('No se pudo parsear la respuesta como JSON:', e);
+                console.log('========================================');
+                console.log('✅ USUARIO GUARDADO EXITOSAMENTE');
+                console.log('========================================');
+                console.log('Status:', response.status);
+                console.log('========================================');
+            }
+        }
+        
+        showToast(
+            editingUsuarioId ? 'Usuario actualizado exitosamente' : 'Usuario creado exitosamente',
+            'success'
+        );
+        
+        closeUsuarioModal();
+        await loadUsuarios();
+        
+    } catch (error) {
+        console.error('========================================');
+        console.error('❌ EXCEPCIÓN AL GUARDAR USUARIO');
+        console.error('========================================');
+        console.error('Error:', error);
+        console.error('Error Message:', error.message);
+        console.error('Error Stack:', error.stack);
+        console.error('Datos que se intentaron enviar:', {...usuarioData, contrasena: '***'});
+        console.error('========================================');
+        
+        showToast(`Error de conexión: ${error.message}`, 'error');
+        alert(`Error de conexión al guardar el usuario:\n\n${error.message}\n\nRevisa la consola (F12) para más detalles.`);
+    } finally {
+        setUsuarioSaveLoading(false);
+    }
+}
+
+// Set usuario save loading state
+function setUsuarioSaveLoading(loading) {
+    const btnText = saveUsuarioBtn.querySelector('.btn-text');
+    const btnLoading = saveUsuarioBtn.querySelector('.btn-loading');
+    
+    if (loading) {
+        saveUsuarioBtn.disabled = true;
+        btnText.style.display = 'none';
+        btnLoading.style.display = 'inline-flex';
+    } else {
+        saveUsuarioBtn.disabled = false;
+        btnText.style.display = 'inline';
+        btnLoading.style.display = 'none';
+    }
+}
+
+// Confirm delete usuario
+function confirmDeleteUsuario(id) {
+    deletingUsuarioId = id;
+    deleteUsuarioModal.classList.add('show');
+}
+
+// Close delete usuario modal
+function closeDeleteUsuarioModal() {
+    deleteUsuarioModal.classList.remove('show');
+    deletingUsuarioId = null;
+}
+
+// Handle delete usuario
+async function handleDeleteUsuario() {
+    if (!deletingUsuarioId) return;
+    
+    try {
+        confirmDeleteUsuarioBtn.disabled = true;
+        confirmDeleteUsuarioBtn.textContent = 'Eliminando...';
+        
+        const response = await fetch(`${API_USUARIOS}/${deletingUsuarioId}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Error al eliminar el usuario');
+        }
+        
+        showToast('Usuario eliminado exitosamente', 'success');
+        
+        closeDeleteUsuarioModal();
+        await loadUsuarios();
+        
+    } catch (error) {
+        console.error('Error deleting usuario:', error);
+        showToast('Error al eliminar el usuario. Por favor intenta de nuevo.', 'error');
+    } finally {
+        confirmDeleteUsuarioBtn.disabled = false;
+        confirmDeleteUsuarioBtn.textContent = 'Eliminar';
     }
 }
 

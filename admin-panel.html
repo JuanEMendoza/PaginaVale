@@ -27,6 +27,9 @@
                 <button class="nav-tab" id="facturasTab" data-tab="facturas">
                     🧾 Facturas
                 </button>
+                <button class="nav-tab" id="usuariosTab" data-tab="usuarios">
+                    👥 Usuarios
+                </button>
                 <button class="nav-tab" id="reportesTab" data-tab="reportes">
                     📊 Reportes
                 </button>
@@ -96,6 +99,42 @@
                             <tr>
                                 <td colspan="7" class="loading-cell">
                                     <span class="spinner"></span> Cargando facturas...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Usuarios Section -->
+            <div class="tab-content" id="usuariosSection">
+                <!-- Actions Bar -->
+                <div class="actions-bar">
+                    <h2>Gestión de Usuarios</h2>
+                    <button class="btn-primary" id="newUsuarioBtn">
+                        <span>+</span> Nuevo Usuario
+                    </button>
+                </div>
+
+                <!-- Usuarios Table -->
+                <div class="table-container">
+                    <table class="data-table" id="usuariosTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nombre</th>
+                                <th>Correo</th>
+                                <th>Teléfono</th>
+                                <th>Rol</th>
+                                <th>Estado</th>
+                                <th>Fecha Registro</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usuariosTableBody">
+                            <tr>
+                                <td colspan="8" class="loading-cell">
+                                    <span class="spinner"></span> Cargando usuarios...
                                 </td>
                             </tr>
                         </tbody>
@@ -468,6 +507,125 @@
             <div class="modal-footer">
                 <button type="button" class="btn-secondary" id="cancelDeleteFacturaBtn">Cancelar</button>
                 <button type="button" class="btn-danger" id="confirmDeleteFacturaBtn">
+                    Eliminar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Create/Edit Usuario -->
+    <div class="modal" id="usuarioModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="usuarioModalTitle">Nuevo Usuario</h2>
+                <button class="modal-close" id="usuarioModalClose">&times;</button>
+            </div>
+            
+            <form id="usuarioForm" class="modal-form">
+                <input type="hidden" id="usuarioId" name="id_usuario">
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="nombre">Nombre *</label>
+                        <input 
+                            type="text" 
+                            id="nombre" 
+                            name="nombre" 
+                            required
+                            placeholder="Ingrese el nombre completo"
+                        >
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="correo">Correo Electrónico *</label>
+                        <input 
+                            type="email" 
+                            id="correo" 
+                            name="correo" 
+                            required
+                            placeholder="usuario@ejemplo.com"
+                        >
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="contrasena">Contraseña *</label>
+                        <input 
+                            type="password" 
+                            id="contrasena" 
+                            name="contrasena" 
+                            required
+                            placeholder="Ingrese la contraseña"
+                            minlength="4"
+                        >
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="telefono">Teléfono</label>
+                        <input 
+                            type="tel" 
+                            id="telefono" 
+                            name="telefono" 
+                            placeholder="3001234567"
+                        >
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="rol">Rol *</label>
+                        <select id="rol" name="rol" required>
+                            <option value="">Seleccione un rol...</option>
+                            <option value="administrador">Administrador</option>
+                            <option value="trabajador">Trabajador</option>
+                            <option value="cliente">Cliente</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="estado">Estado *</label>
+                        <select id="estado" name="estado" required>
+                            <option value="">Seleccione un estado...</option>
+                            <option value="activo">Activo</option>
+                            <option value="inactivo">Inactivo</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" id="cancelUsuarioBtn">Cancelar</button>
+                    <button type="submit" class="btn-primary" id="saveUsuarioBtn">
+                        <span class="btn-text">Guardar</span>
+                        <span class="btn-loading" style="display: none;">
+                            <span class="spinner"></span> Guardando...
+                        </span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal for Delete Usuario Confirmation -->
+    <div class="modal" id="deleteUsuarioModal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h2>Confirmar Eliminación</h2>
+                <button class="modal-close" id="deleteUsuarioModalClose">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <p>¿Estás seguro de que deseas eliminar este usuario?</p>
+                <p class="delete-warning">Esta acción no se puede deshacer.</p>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" id="cancelDeleteUsuarioBtn">Cancelar</button>
+                <button type="button" class="btn-danger" id="confirmDeleteUsuarioBtn">
                     Eliminar
                 </button>
             </div>

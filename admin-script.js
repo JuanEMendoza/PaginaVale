@@ -1967,19 +1967,39 @@ async function handleSaveUsuario(e) {
         console.log('Datos a enviar:', JSON.stringify({...usuarioData, contrasena: '***'}, null, 2));
         console.log('========================================');
         
-        const response = await fetch(url, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(usuarioData)
-        });
+        let response;
+        try {
+            response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(usuarioData)
+            });
+        } catch (fetchError) {
+            // Error de red (CORS, conexión, etc.)
+            console.error('========================================');
+            console.error('❌ ERROR DE RED AL ENVIAR USUARIO');
+            console.error('========================================');
+            console.error('Error:', fetchError);
+            console.error('Error Message:', fetchError.message);
+            console.error('Error Stack:', fetchError.stack);
+            console.error('URL:', url);
+            console.error('Método:', method);
+            console.error('========================================');
+            
+            showToast(`Error de conexión: ${fetchError.message}`, 'error');
+            alert(`Error de conexión al guardar el usuario:\n\n${fetchError.message}\n\nVerifica:\n- Que el backend esté en línea\n- Que CORS esté configurado correctamente\n- Tu conexión a internet`);
+            return;
+        }
         
         console.log('========================================');
         console.log('📥 RESPUESTA DEL SERVIDOR');
         console.log('========================================');
         console.log('Status:', response.status);
         console.log('Status Text:', response.statusText);
+        console.log('Headers:', Object.fromEntries(response.headers.entries()));
+        console.log('========================================');
         
         if (!response.ok) {
             let errorMessage = 'Error al guardar el usuario';
@@ -2033,44 +2053,59 @@ async function handleSaveUsuario(e) {
             return;
         }
         
-        // Manejar respuesta: PUT devuelve 200 OK o 204 NoContent, POST devuelve 201 Created
-        let result = null;
+        // Manejar respuesta: PUT devuelve 204 NoContent (sin cuerpo), POST devuelve 201 Created (con cuerpo)
+        // IMPORTANTE: Para 204 NoContent, NO intentar leer el cuerpo de la respuesta
         
         if (response.status === 204) {
+            // 204 NoContent - Actualización exitosa sin cuerpo de respuesta
             console.log('========================================');
             console.log('✅ USUARIO ACTUALIZADO EXITOSAMENTE');
             console.log('========================================');
             console.log('Status: 204 NoContent (sin cuerpo)');
+            console.log('No se intenta leer el cuerpo de la respuesta');
             console.log('========================================');
+            
+            showToast('Usuario actualizado exitosamente', 'success');
+            closeUsuarioModal();
+            await loadUsuarios();
         } else {
+            // Para 201 (Created) y otros códigos de éxito, intentar parsear JSON
             try {
                 const responseText = await response.text();
                 if (responseText && responseText.trim().length > 0) {
-                    result = JSON.parse(responseText);
+                    const result = JSON.parse(responseText);
                     console.log('========================================');
                     console.log('✅ USUARIO GUARDADO EXITOSAMENTE');
                     console.log('========================================');
                     console.log('Status:', response.status);
                     console.log('Respuesta del servidor:', JSON.stringify({...result, contrasena: '***'}, null, 2));
                     console.log('========================================');
+                } else {
+                    console.log('========================================');
+                    console.log('✅ USUARIO GUARDADO EXITOSAMENTE');
+                    console.log('========================================');
+                    console.log('Status:', response.status);
+                    console.log('Respuesta sin contenido');
+                    console.log('========================================');
                 }
             } catch (e) {
-                console.warn('No se pudo parsear la respuesta como JSON:', e);
+                // Si falla el parseo pero el status es éxito, asumir que fue exitoso
+                console.warn('No se pudo parsear la respuesta como JSON, pero el status es éxito:', e);
                 console.log('========================================');
                 console.log('✅ USUARIO GUARDADO EXITOSAMENTE');
                 console.log('========================================');
                 console.log('Status:', response.status);
                 console.log('========================================');
             }
+            
+            showToast(
+                editingUsuarioId ? 'Usuario actualizado exitosamente' : 'Usuario creado exitosamente',
+                'success'
+            );
+            
+            closeUsuarioModal();
+            await loadUsuarios();
         }
-        
-        showToast(
-            editingUsuarioId ? 'Usuario actualizado exitosamente' : 'Usuario creado exitosamente',
-            'success'
-        );
-        
-        closeUsuarioModal();
-        await loadUsuarios();
         
     } catch (error) {
         console.error('========================================');

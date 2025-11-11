@@ -175,6 +175,12 @@ const deleteUsuarioModal = document.getElementById('deleteUsuarioModal');
 const deleteUsuarioModalClose = document.getElementById('deleteUsuarioModalClose');
 const cancelDeleteUsuarioBtn = document.getElementById('cancelDeleteUsuarioBtn');
 const confirmDeleteUsuarioBtn = document.getElementById('confirmDeleteUsuarioBtn');
+
+// Verificar que los elementos existan
+if (!newUsuarioBtn) console.warn('⚠️ newUsuarioBtn no encontrado');
+if (!usuariosTableBody) console.warn('⚠️ usuariosTableBody no encontrado');
+if (!usuarioModal) console.warn('⚠️ usuarioModal no encontrado');
+if (!usuarioForm) console.warn('⚠️ usuarioForm no encontrado');
 const serviciosReportTableBody = document.getElementById('serviciosReportTableBody');
 const citasDiaReportTableBody = document.getElementById('citasDiaReportTableBody');
 const ventasReportTableBody = document.getElementById('ventasReportTableBody');
@@ -248,13 +254,38 @@ function setupEventListeners() {
     confirmDeleteFacturaBtn.addEventListener('click', handleDeleteFactura);
     
     // Usuarios listeners
-    newUsuarioBtn.addEventListener('click', () => openUsuarioModal());
-    usuarioModalClose.addEventListener('click', closeUsuarioModal);
-    cancelUsuarioBtn.addEventListener('click', closeUsuarioModal);
-    usuarioForm.addEventListener('submit', handleSaveUsuario);
-    deleteUsuarioModalClose.addEventListener('click', closeDeleteUsuarioModal);
-    cancelDeleteUsuarioBtn.addEventListener('click', closeDeleteUsuarioModal);
-    confirmDeleteUsuarioBtn.addEventListener('click', handleDeleteUsuario);
+    if (newUsuarioBtn) {
+        newUsuarioBtn.addEventListener('click', () => {
+            console.log('🔵 Click en nuevo usuario');
+            openUsuarioModal();
+        });
+    } else {
+        console.error('❌ newUsuarioBtn no existe');
+    }
+    
+    if (usuarioModalClose) {
+        usuarioModalClose.addEventListener('click', closeUsuarioModal);
+    }
+    
+    if (cancelUsuarioBtn) {
+        cancelUsuarioBtn.addEventListener('click', closeUsuarioModal);
+    }
+    
+    if (usuarioForm) {
+        usuarioForm.addEventListener('submit', handleSaveUsuario);
+    }
+    
+    if (deleteUsuarioModalClose) {
+        deleteUsuarioModalClose.addEventListener('click', closeDeleteUsuarioModal);
+    }
+    
+    if (cancelDeleteUsuarioBtn) {
+        cancelDeleteUsuarioBtn.addEventListener('click', closeDeleteUsuarioModal);
+    }
+    
+    if (confirmDeleteUsuarioBtn) {
+        confirmDeleteUsuarioBtn.addEventListener('click', handleDeleteUsuario);
+    }
     
     // Close modals on outside click
     citaModal.addEventListener('click', (e) => {
@@ -373,35 +404,47 @@ function handleLogout() {
 // Load usuarios
 async function loadUsuarios() {
     try {
+        console.log('🔄 Cargando usuarios desde:', API_USUARIOS);
         setTableLoading(true);
+        
         const response = await fetch(API_USUARIOS);
+        console.log('📥 Respuesta de usuarios:', response.status, response.statusText);
 
         if (!response.ok) {
-            throw new Error('Error al cargar los usuarios');
+            throw new Error(`Error al cargar los usuarios: ${response.status} ${response.statusText}`);
         }
 
         usuarios = await response.json();
+        console.log('✅ Usuarios cargados:', usuarios.length);
+        
         buildUsuariosCollections();
         populateClienteOptions();
         populateTrabajadorOptions();
         populateFacturaClienteFilterOptions();
         
-        // Render usuarios table if we're on the usuarios tab
-        if (currentTab === 'usuarios') {
+        // Render usuarios table if we're on the usuarios tab or if table exists
+        if (currentTab === 'usuarios' || usuariosTableBody) {
+            console.log('📋 Renderizando tabla de usuarios...');
             renderUsuarios();
+        } else {
+            console.log('ℹ️ No estamos en la pestaña de usuarios, no se renderiza la tabla');
         }
 
     } catch (error) {
-        console.error('Error loading usuarios:', error);
+        console.error('❌ Error loading usuarios:', error);
+        console.error('Error details:', error.message, error.stack);
         showToast('Error al cargar los usuarios', 'error');
         if (usuariosTableBody) {
             usuariosTableBody.innerHTML = `
                 <tr>
                     <td colspan="8" class="empty-cell">
                         Error al cargar los datos. Por favor, recarga la página.
+                        <br><small>${error.message}</small>
                     </td>
                 </tr>
             `;
+        } else {
+            console.error('❌ usuariosTableBody no existe');
         }
     } finally {
         setTableLoading(false);
@@ -410,9 +453,15 @@ async function loadUsuarios() {
 
 // Render usuarios table
 function renderUsuarios() {
-    if (!usuariosTableBody) return;
+    console.log('🎨 Renderizando usuarios, total:', usuarios.length);
+    
+    if (!usuariosTableBody) {
+        console.error('❌ usuariosTableBody no existe');
+        return;
+    }
     
     if (usuarios.length === 0) {
+        console.log('ℹ️ No hay usuarios para mostrar');
         usuariosTableBody.innerHTML = `
             <tr>
                 <td colspan="8" class="empty-cell">
@@ -423,6 +472,7 @@ function renderUsuarios() {
         return;
     }
     
+    console.log('✅ Renderizando', usuarios.length, 'usuarios');
     usuariosTableBody.innerHTML = usuarios.map(usuario => {
         const fecha = usuario.fecha_registro ? new Date(usuario.fecha_registro) : null;
         const fechaFormatted = fecha
@@ -1742,17 +1792,32 @@ function setFacturaSaveLoading(loading) {
 
 // Open usuario modal (new)
 function openUsuarioModal(usuario = null) {
+    console.log('🔵 openUsuarioModal llamado, usuario:', usuario);
+    
+    if (!usuarioModal) {
+        console.error('❌ usuarioModal no existe');
+        showToast('Error: Modal de usuario no encontrado', 'error');
+        return;
+    }
+    
     editingUsuarioId = usuario ? usuario.id_usuario : null;
     
     if (usuario) {
-        usuarioModalTitle.textContent = 'Editar Usuario';
+        if (usuarioModalTitle) {
+            usuarioModalTitle.textContent = 'Editar Usuario';
+        }
         fillFormWithUsuario(usuario);
     } else {
-        usuarioModalTitle.textContent = 'Nuevo Usuario';
-        usuarioForm.reset();
+        if (usuarioModalTitle) {
+            usuarioModalTitle.textContent = 'Nuevo Usuario';
+        }
+        if (usuarioForm) {
+            usuarioForm.reset();
+        }
     }
     
     usuarioModal.classList.add('show');
+    console.log('✅ Modal de usuario abierto');
 }
 
 // Fill form with usuario data
